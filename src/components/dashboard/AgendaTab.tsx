@@ -79,7 +79,7 @@ export function AgendaTab() {
           total_price,
           customer_id,
           barber_id,
-          profiles!orders_customer_id_fkey (
+          profiles!orders_customer_id_profiles_fkey (
             full_name,
             phone
           ),
