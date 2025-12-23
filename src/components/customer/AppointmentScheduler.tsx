@@ -1,0 +1,504 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { CalendarIcon, Clock, Loader2, Scissors, User, Check } from "lucide-react";
+
+interface Service {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  duration_minutes: number;
+}
+
+interface Barber {
+  id: string;
+  name: string;
+}
+
+interface TimeSlot {
+  time: string;
+  available: boolean;
+}
+
+interface AppointmentSchedulerProps {
+  onAppointmentCreated: () => void;
+}
+
+// Business hours configuration
+const OPENING_HOUR = 9;
+const CLOSING_HOUR = 19;
+const SLOT_DURATION_MINUTES = 30;
+
+export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedulerProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [services, setServices] = useState<Service[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [preferredBarber, setPreferredBarber] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAvailableSlots(selectedDate);
+    }
+  }, [selectedDate, preferredBarber]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [servicesRes, barbersRes] = await Promise.all([
+        supabase.from("services").select("*").eq("active", true).order("category"),
+        supabase.from("barbers").select("id, name").eq("active", true),
+      ]);
+
+      if (servicesRes.error) throw servicesRes.error;
+      if (barbersRes.error) throw barbersRes.error;
+
+      setServices(servicesRes.data || []);
+      setBarbers(barbersRes.data || []);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os dados",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAvailableSlots = async (date: Date) => {
+    setLoadingSlots(true);
+    setSelectedTime("");
+
+    try {
+      // Get all orders for the selected date
+      const startOfSelectedDay = startOfDay(date);
+      const endOfSelectedDay = new Date(startOfSelectedDay);
+      endOfSelectedDay.setDate(endOfSelectedDay.getDate() + 1);
+
+      let query = supabase
+        .from("orders")
+        .select("scheduled_at, barber_id")
+        .gte("scheduled_at", startOfSelectedDay.toISOString())
+        .lt("scheduled_at", endOfSelectedDay.toISOString())
+        .in("status", ["pending", "confirmed", "in_progress"]);
+
+      // If a barber is selected, only check their appointments
+      if (preferredBarber) {
+        query = query.or(`barber_id.eq.${preferredBarber},preferred_barber_id.eq.${preferredBarber}`);
+      }
+
+      const { data: bookedOrders, error } = await query;
+
+      if (error) throw error;
+
+      // Generate all possible time slots
+      const slots: TimeSlot[] = [];
+      const now = new Date();
+      const bookedTimes = new Set(
+        (bookedOrders || [])
+          .filter(order => order.scheduled_at)
+          .map(order => format(new Date(order.scheduled_at!), "HH:mm"))
+      );
+
+      for (let hour = OPENING_HOUR; hour < CLOSING_HOUR; hour++) {
+        for (let min = 0; min < 60; min += SLOT_DURATION_MINUTES) {
+          const slotTime = setMinutes(setHours(date, hour), min);
+          const timeString = format(slotTime, "HH:mm");
+
+          // Check if slot is in the past
+          const isPast = isSameDay(date, now) && isBefore(slotTime, now);
+          
+          // Check if slot is already booked
+          const isBooked = bookedTimes.has(timeString);
+
+          slots.push({
+            time: timeString,
+            available: !isPast && !isBooked,
+          });
+        }
+      }
+
+      setTimeSlots(slots);
+    } catch (err) {
+      console.error("Error fetching slots:", err);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os horários",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleServiceToggle = (serviceId: string) => {
+    setSelectedServices((prev) =>
+      prev.includes(serviceId)
+        ? prev.filter((id) => id !== serviceId)
+        : [...prev, serviceId]
+    );
+  };
+
+  const calculateTotal = () => {
+    return selectedServices.reduce((total, serviceId) => {
+      const service = services.find((s) => s.id === serviceId);
+      return total + (service?.price || 0);
+    }, 0);
+  };
+
+  const handleSubmit = async () => {
+    if (!user) return;
+
+    if (selectedServices.length === 0) {
+      toast({
+        title: "Atenção",
+        description: "Selecione pelo menos um serviço",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedDate || !selectedTime) {
+      toast({
+        title: "Atenção",
+        description: "Selecione uma data e horário",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const totalPrice = calculateTotal();
+      
+      // Create scheduled datetime
+      const [hours, minutes] = selectedTime.split(":").map(Number);
+      const scheduledAt = setMinutes(setHours(selectedDate, hours), minutes);
+
+      // Create the order
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          customer_id: user.id,
+          preferred_barber_id: preferredBarber || null,
+          total_price: totalPrice,
+          notes: notes || null,
+          status: "pending",
+          scheduled_at: scheduledAt.toISOString(),
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = selectedServices.map((serviceId) => {
+        const service = services.find((s) => s.id === serviceId);
+        return {
+          order_id: order.id,
+          service_id: serviceId,
+          price: service?.price || 0,
+        };
+      });
+
+      const { error: itemsError } = await supabase
+        .from("order_items")
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      toast({
+        title: "Agendamento confirmado!",
+        description: `Seu horário foi marcado para ${format(scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+      });
+
+      // Reset form
+      setSelectedServices([]);
+      setPreferredBarber("");
+      setSelectedDate(undefined);
+      setSelectedTime("");
+      setNotes("");
+      onAppointmentCreated();
+    } catch (err) {
+      console.error("Error creating order:", err);
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar o agendamento",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Group services by category
+  const groupedServices = services.reduce((acc, service) => {
+    if (!acc[service.category]) {
+      acc[service.category] = [];
+    }
+    acc[service.category].push(service);
+    return acc;
+  }, {} as Record<string, Service[]>);
+
+  const availableSlots = timeSlots.filter(slot => slot.available);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Services Selection */}
+      <Card className="glass border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Scissors className="h-5 w-5 text-primary" />
+            Escolha os Serviços
+          </CardTitle>
+          <CardDescription>Selecione os serviços desejados</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Object.entries(groupedServices).map(([category, categoryServices]) => (
+            <div key={category} className="space-y-2">
+              <p className="text-sm text-muted-foreground font-medium">{category}</p>
+              <div className="space-y-2">
+                {categoryServices.map((service) => (
+                  <div
+                    key={service.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
+                      selectedServices.includes(service.id)
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border hover:border-primary/50"
+                    )}
+                    onClick={() => handleServiceToggle(service.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedServices.includes(service.id)}
+                        onCheckedChange={() => handleServiceToggle(service.id)}
+                      />
+                      <div>
+                        <p className="font-medium text-foreground">{service.name}</p>
+                        <p className="text-xs text-muted-foreground">{service.duration_minutes} min</p>
+                      </div>
+                    </div>
+                    <span className="font-semibold text-primary">
+                      R$ {Number(service.price).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {services.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum serviço disponível
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Barber Selection */}
+      <Card className="glass border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <User className="h-5 w-5 text-primary" />
+            Preferência de Barbeiro
+          </CardTitle>
+          <CardDescription>Opcional - deixe em branco para qualquer barbeiro</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select value={preferredBarber} onValueChange={(val) => setPreferredBarber(val === "none" ? "" : val)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Sem preferência" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sem preferência</SelectItem>
+              {barbers.map((barber) => (
+                <SelectItem key={barber.id} value={barber.id}>
+                  {barber.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* Date Selection */}
+      <Card className="glass border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <CalendarIcon className="h-5 w-5 text-primary" />
+            Escolha a Data
+          </CardTitle>
+          <CardDescription>Selecione o dia do agendamento</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? format(selectedDate, "PPP", { locale: ptBR }) : "Selecione uma data"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                disabled={(date) => isBefore(date, startOfDay(new Date())) || isAfter(date, addDays(new Date(), 30))}
+                initialFocus
+                locale={ptBR}
+                className="p-3 pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+        </CardContent>
+      </Card>
+
+      {/* Time Slots */}
+      {selectedDate && (
+        <Card className="glass border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Clock className="h-5 w-5 text-primary" />
+              Horários Disponíveis
+            </CardTitle>
+            <CardDescription>
+              {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingSlots ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : availableSlots.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                Nenhum horário disponível nesta data
+              </p>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                {timeSlots.map((slot) => (
+                  <Button
+                    key={slot.time}
+                    variant={selectedTime === slot.time ? "default" : "outline"}
+                    size="sm"
+                    disabled={!slot.available}
+                    onClick={() => setSelectedTime(slot.time)}
+                    className={cn(
+                      "relative",
+                      !slot.available && "opacity-50 cursor-not-allowed line-through",
+                      selectedTime === slot.time && "ring-2 ring-primary ring-offset-2"
+                    )}
+                  >
+                    {slot.time}
+                    {selectedTime === slot.time && (
+                      <Check className="h-3 w-3 ml-1" />
+                    )}
+                  </Button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Notes */}
+      <Card className="glass border-border/50">
+        <CardHeader>
+          <CardTitle className="text-lg">Observações</CardTitle>
+          <CardDescription>Opcional - alguma informação adicional</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            placeholder="Ex: Quero corte mais curto nas laterais..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Summary & Submit */}
+      {selectedServices.length > 0 && (
+        <Card className="glass border-primary/30 bg-primary/5">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-medium text-foreground">Total</span>
+              <span className="text-2xl font-bold text-primary">
+                R$ {calculateTotal().toFixed(2)}
+              </span>
+            </div>
+
+            {selectedDate && selectedTime && (
+              <p className="text-sm text-muted-foreground mb-4 text-center">
+                📅 {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })} às {selectedTime}
+              </p>
+            )}
+
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleSubmit}
+              disabled={submitting || selectedServices.length === 0 || !selectedDate || !selectedTime}
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              Confirmar Agendamento
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

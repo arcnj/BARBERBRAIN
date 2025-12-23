@@ -5,11 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, Plus, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { NewOrderDialog } from "@/components/customer/NewOrderDialog";
+import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
 
 interface Order {
   id: string;
@@ -53,7 +54,7 @@ export default function CustomerDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [activeTab, setActiveTab] = useState("agendar");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -160,18 +161,18 @@ export default function CustomerDashboard() {
 
         <main className="container py-6 pb-24">
           {/* Welcome Section */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="font-heading text-2xl font-bold text-foreground mb-2">
               Olá! 👋
             </h1>
             <p className="text-muted-foreground">
-              Gerencie seus agendamentos e faça novos pedidos
+              Agende seu horário e acompanhe seus pedidos
             </p>
           </div>
 
           {/* Promotions Section */}
           {promotions.length > 0 && (
-            <div className="mb-8">
+            <div className="mb-6">
               <h2 className="font-heading text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Megaphone className="h-5 w-5 text-primary" />
                 Promoções
@@ -214,111 +215,122 @@ export default function CustomerDashboard() {
             </div>
           )}
 
-          {/* New Order Button */}
-          <Button
-            size="lg"
-            className="w-full mb-8"
-            onClick={() => setShowNewOrder(true)}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Novo Pedido
-          </Button>
+          {/* Tabs for Scheduling and Orders */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="agendar" className="flex items-center gap-2">
+                <CalendarPlus className="h-4 w-4" />
+                Agendar
+              </TabsTrigger>
+              <TabsTrigger value="pedidos" className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Meus Pedidos
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Orders Section */}
-          <div>
-            <h2 className="font-heading text-lg font-semibold text-foreground mb-4">
-              Meus Pedidos
-            </h2>
+            {/* Scheduling Tab */}
+            <TabsContent value="agendar">
+              <AppointmentScheduler 
+                onAppointmentCreated={() => {
+                  fetchOrders();
+                  setActiveTab("pedidos");
+                }} 
+              />
+            </TabsContent>
 
-            {loadingOrders ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : orders.length === 0 ? (
-              <Card className="glass border-border/50">
-                <CardContent className="py-12 text-center">
-                  <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">
-                    Você ainda não tem pedidos
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setShowNewOrder(true)}
-                  >
-                    Fazer primeiro pedido
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {orders.map((order) => (
-                  <Card key={order.id} className="glass border-border/50">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">
-                          Pedido #{order.id.slice(0, 8)}
-                        </CardTitle>
-                        <Badge variant={statusMap[order.status]?.variant || "secondary"}>
-                          {statusMap[order.status]?.label || order.status}
-                        </Badge>
-                      </div>
-                      <CardDescription className="flex items-center gap-4 mt-1">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {format(new Date(order.created_at), "dd/MM/yyyy", { locale: ptBR })}
-                        </span>
-                        {order.preferred_barber && (
-                          <span className="flex items-center gap-1">
-                            <User className="h-3.5 w-3.5" />
-                            {order.preferred_barber.name}
-                          </span>
-                        )}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {/* Services */}
-                      <div className="space-y-1 mb-3">
-                        {order.order_items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <span className="text-foreground">{item.service.name}</span>
-                            <span className="text-muted-foreground">
-                              R$ {Number(item.price).toFixed(2)}
+            {/* Orders Tab */}
+            <TabsContent value="pedidos">
+              {loadingOrders ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : orders.length === 0 ? (
+                <Card className="glass border-border/50">
+                  <CardContent className="py-12 text-center">
+                    <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">
+                      Você ainda não tem agendamentos
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => setActiveTab("agendar")}
+                    >
+                      Agendar agora
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((order) => (
+                    <Card key={order.id} className="glass border-border/50">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">
+                            Agendamento #{order.id.slice(0, 8)}
+                          </CardTitle>
+                          <Badge variant={statusMap[order.status]?.variant || "secondary"}>
+                            {statusMap[order.status]?.label || order.status}
+                          </Badge>
+                        </div>
+                        <CardDescription className="flex items-center gap-4 mt-1">
+                          {order.scheduled_at ? (
+                            <span className="flex items-center gap-1 text-primary font-medium">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {format(new Date(order.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
                             </span>
-                          </div>
-                        ))}
-                      </div>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" />
+                              {format(new Date(order.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                            </span>
+                          )}
+                          {order.preferred_barber && (
+                            <span className="flex items-center gap-1">
+                              <User className="h-3.5 w-3.5" />
+                              {order.preferred_barber.name}
+                            </span>
+                          )}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {/* Services */}
+                        <div className="space-y-1 mb-3">
+                          {order.order_items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between text-sm"
+                            >
+                              <span className="text-foreground">{item.service.name}</span>
+                              <span className="text-muted-foreground">
+                                R$ {Number(item.price).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
 
-                      {/* Total */}
-                      <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                        <span className="font-medium text-foreground">Total</span>
-                        <span className="font-bold text-primary">
-                          R$ {Number(order.total_price).toFixed(2)}
-                        </span>
-                      </div>
+                        {/* Total */}
+                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                          <span className="font-medium text-foreground">Total</span>
+                          <span className="font-bold text-primary">
+                            R$ {Number(order.total_price).toFixed(2)}
+                          </span>
+                        </div>
 
-                      {/* Notes */}
-                      {order.notes && (
-                        <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
-                          {order.notes}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+                        {/* Notes */}
+                        {order.notes && (
+                          <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
+                            {order.notes}
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </main>
-
-        <NewOrderDialog
-          open={showNewOrder}
-          onOpenChange={setShowNewOrder}
-          onOrderCreated={fetchOrders}
-        />
       </div>
     </>
   );
