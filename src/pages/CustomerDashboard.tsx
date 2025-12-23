@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -58,6 +58,7 @@ interface Product {
   description: string | null;
   price: number;
   image_url: string | null;
+  total_sold?: number;
 }
 
 interface SelectedProduct {
@@ -144,14 +145,42 @@ export default function CustomerDashboard() {
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch products
+      const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select("id, name, description, price, image_url")
         .eq("active", true)
         .order("name");
 
-      if (error) throw error;
-      setProducts(data || []);
+      if (productsError) throw productsError;
+
+      // Fetch sales count from order_products
+      const { data: salesData, error: salesError } = await supabase
+        .from("order_products")
+        .select("product_id, quantity");
+
+      if (salesError) {
+        console.error("Error fetching sales:", salesError);
+        setProducts(productsData || []);
+        return;
+      }
+
+      // Calculate total sold per product
+      const salesMap: Record<string, number> = {};
+      salesData?.forEach((sale) => {
+        salesMap[sale.product_id] = (salesMap[sale.product_id] || 0) + sale.quantity;
+      });
+
+      // Merge sales with products and sort by total_sold
+      const productsWithSales = (productsData || []).map((p) => ({
+        ...p,
+        total_sold: salesMap[p.id] || 0,
+      }));
+
+      // Sort: best sellers first
+      productsWithSales.sort((a, b) => b.total_sold - a.total_sold);
+
+      setProducts(productsWithSales);
     } catch (err) {
       console.error("Error fetching products:", err);
     }
@@ -339,8 +368,9 @@ export default function CustomerDashboard() {
                 )}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {products.map((product) => {
+                {products.map((product, index) => {
                   const selected = isProductSelected(product.id);
+                  const isBestSeller = index === 0 && (product.total_sold || 0) > 0;
                   return (
                     <Card 
                       key={product.id} 
@@ -357,6 +387,14 @@ export default function CustomerDashboard() {
                           />
                         ) : (
                           <Package className="h-6 w-6 text-muted-foreground" />
+                        )}
+                        {isBestSeller && (
+                          <div className="absolute top-1 left-1">
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 gap-0.5">
+                              <Flame className="h-3 w-3" />
+                              Mais vendido
+                            </Badge>
+                          </div>
                         )}
                         {selected && (
                           <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
