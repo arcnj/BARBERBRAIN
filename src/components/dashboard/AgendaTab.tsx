@@ -94,40 +94,47 @@ export function AgendaTab() {
         `)
         .gte("scheduled_at", startDate)
         .lte("scheduled_at", endDate)
+        .neq("status", "cancelled")
         .order("scheduled_at", { ascending: true });
 
       if (error) throw error;
       return data as unknown as Order[];
     },
+    staleTime: 30000, // Cache for 30 seconds
   });
 
-  // Fetch services for the new appointment form
+  // Fetch services for the new appointment form (only when dialog opens)
   const { data: services } = useQuery({
     queryKey: ["services-active"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("*")
+        .select("id, name, price, duration_minutes")
         .eq("active", true)
         .order("name");
 
       if (error) throw error;
       return data;
     },
+    staleTime: 60000, // Cache for 1 minute
+    enabled: isDialogOpen, // Only fetch when dialog is open
   });
 
-  // Fetch profiles for customer search
+  // Fetch profiles for customer search (only when dialog opens)
   const { data: customers } = useQuery({
     queryKey: ["customers-list"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("user_id, full_name, phone")
-        .order("full_name");
+        .order("full_name")
+        .limit(100);
 
       if (error) throw error;
       return data;
     },
+    staleTime: 60000, // Cache for 1 minute
+    enabled: isDialogOpen, // Only fetch when dialog is open
   });
 
   // Update order status mutation
