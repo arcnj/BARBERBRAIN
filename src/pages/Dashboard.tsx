@@ -9,6 +9,7 @@ import { ClientsTab } from "@/components/dashboard/ClientsTab";
 import { BusinessTab } from "@/components/dashboard/BusinessTab";
 import { SuggestionsTab } from "@/components/dashboard/SuggestionsTab";
 import { ServicesTab } from "@/components/dashboard/ServicesTab";
+import { ProductsTab } from "@/components/dashboard/ProductsTab";
 import { PromotionsTab } from "@/components/dashboard/PromotionsTab";
 import { BarbersTab } from "@/components/dashboard/BarbersTab";
 import { Helmet } from "react-helmet";
@@ -40,6 +41,8 @@ export default function Dashboard() {
         return <BarbersTab />;
       case "servicos":
         return <ServicesTab />;
+      case "produtos":
+        return <ProductsTab />;
       case "promocoes":
         return <PromotionsTab />;
       case "negocio":

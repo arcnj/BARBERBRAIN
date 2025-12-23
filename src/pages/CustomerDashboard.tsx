@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -52,6 +52,14 @@ interface Promotion {
   end_date: string | null;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  image_url: string | null;
+}
+
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Pendente", variant: "secondary" },
   confirmed: { label: "Confirmado", variant: "default" },
@@ -65,6 +73,7 @@ export default function CustomerDashboard() {
   const { user, role, loading, signOut } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState("agendar");
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -126,10 +135,26 @@ export default function CustomerDashboard() {
     }
   };
 
+  const fetchProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, description, price, image_url")
+        .eq("active", true)
+        .order("name");
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchOrders();
       fetchPromotions();
+      fetchProducts();
     }
   }, [user]);
 
@@ -270,6 +295,37 @@ export default function CustomerDashboard() {
                           Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
                         </p>
                       )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Products Section */}
+          {products.length > 0 && (
+            <div className="mb-6">
+              <h2 className="font-heading text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" />
+                Produtos
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {products.map((product) => (
+                  <Card key={product.id} className="glass border-border/50 overflow-hidden">
+                    <div className="aspect-square bg-muted/50 flex items-center justify-center">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Package className="h-10 w-10 text-muted-foreground" />
+                      )}
+                    </div>
+                    <CardContent className="p-3">
+                      <h3 className="font-medium text-foreground text-sm truncate">{product.name}</h3>
+                      <p className="text-primary font-bold text-sm">R$ {Number(product.price).toFixed(2)}</p>
                     </CardContent>
                   </Card>
                 ))}
