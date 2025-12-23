@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package } from "lucide-react";
+import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package, RefreshCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
@@ -71,7 +71,13 @@ export function AgendaTab() {
   const queryClient = useQueryClient();
 
   // Fetch orders for selected date
-  const { data: orders, isLoading } = useQuery({
+  const {
+    data: orders,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ["agenda-orders", format(selectedDate, "yyyy-MM-dd")],
     queryFn: async () => {
       const startDate = startOfDay(selectedDate).toISOString();
@@ -116,7 +122,9 @@ export function AgendaTab() {
       if (error) throw error;
       return data as unknown as Order[];
     },
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   // Fetch services for the new appointment form (only when dialog opens)
@@ -298,6 +306,20 @@ export function AgendaTab() {
             </PopoverContent>
           </Popover>
 
+          {/* Refresh */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => refetch()}
+            aria-label="Atualizar agenda"
+          >
+            {isFetching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-4 w-4" />
+            )}
+          </Button>
+
           {/* Add appointment button */}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -438,14 +460,39 @@ export function AgendaTab() {
             </Card>
           ))}
         </div>
-      ) : orders?.length === 0 ? (
+      ) : isError ? (
         <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
+            <p className="text-lg font-medium">Erro ao carregar a agenda</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              Tente atualizar para buscar os pedidos mais recentes.
+            </p>
+            <Button variant="outline" onClick={() => refetch()} className="gap-2">
+              <RefreshCcw className="h-4 w-4" />
+              Atualizar
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (orders?.length ?? 0) === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-lg font-medium">Nenhum agendamento</p>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-sm mb-4">
               Não há agendamentos para esta data
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {isToday(selectedDate) && (
+                <Button variant="default" onClick={() => setSelectedDate(addDays(new Date(), 1))}>
+                  Ver amanhã
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => refetch()} className="gap-2">
+                <RefreshCcw className="h-4 w-4" />
+                Atualizar
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
