@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
@@ -37,6 +37,14 @@ interface Order {
     services: {
       name: string;
       duration_minutes: number | null;
+    } | null;
+  }[];
+  order_products: {
+    id: string;
+    price: number;
+    quantity: number;
+    products: {
+      name: string;
     } | null;
   }[];
 }
@@ -89,6 +97,14 @@ export function AgendaTab() {
             services (
               name,
               duration_minutes
+            )
+          ),
+          order_products (
+            id,
+            price,
+            quantity,
+            products (
+              name
             )
           )
         `)
@@ -476,12 +492,24 @@ export function AgendaTab() {
                           {/* Services */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <Scissors className="h-4 w-4 text-muted-foreground" />
-                            {order.order_items.map((item, index) => (
+                            {order.order_items.map((item) => (
                               <Badge key={item.id} variant="secondary">
                                 {item.services?.name || "Serviço"}
                               </Badge>
                             ))}
                           </div>
+
+                          {/* Products */}
+                          {order.order_products && order.order_products.length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                              {order.order_products.map((item) => (
+                                <Badge key={item.id} variant="outline" className="border-primary/50 text-primary">
+                                  {item.quantity}x {item.products?.name || "Produto"}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
 
                           {/* Notes */}
                           {order.notes && (

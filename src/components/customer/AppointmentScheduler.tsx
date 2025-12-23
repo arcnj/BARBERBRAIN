@@ -39,7 +39,14 @@ interface TimeSlot {
   available: boolean;
 }
 
+interface SelectedProduct {
+  id: string;
+  name: string;
+  price: number;
+}
+
 interface AppointmentSchedulerProps {
+  selectedProducts?: SelectedProduct[];
   onAppointmentCreated: () => void;
 }
 
@@ -48,7 +55,7 @@ const OPENING_HOUR = 9;
 const CLOSING_HOUR = 19;
 const SLOT_DURATION_MINUTES = 30;
 
-export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedulerProps) {
+export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreated }: AppointmentSchedulerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
@@ -179,10 +186,12 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
   };
 
   const calculateTotal = () => {
-    return selectedServices.reduce((total, serviceId) => {
+    const servicesTotal = selectedServices.reduce((total, serviceId) => {
       const service = services.find((s) => s.id === serviceId);
       return total + (service?.price || 0);
     }, 0);
+    const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
+    return servicesTotal + productsTotal;
   };
 
   const handleSubmit = async () => {
@@ -255,6 +264,22 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // Create order products if any
+      if (selectedProducts.length > 0) {
+        const orderProductItems = selectedProducts.map((product) => ({
+          order_id: order.id,
+          product_id: product.id,
+          price: product.price,
+          quantity: 1,
+        }));
+
+        const { error: productsError } = await supabase
+          .from("order_products")
+          .insert(orderProductItems);
+
+        if (productsError) throw productsError;
+      }
 
       toast({
         title: "Agendamento confirmado!",
@@ -486,6 +511,20 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
       {selectedServices.length > 0 && (
         <Card className="glass border-primary/30 bg-primary/5">
           <CardContent className="py-4">
+            {/* Products included */}
+            {selectedProducts.length > 0 && (
+              <div className="mb-4 p-3 bg-muted/30 rounded-lg">
+                <p className="text-sm font-medium text-foreground mb-2">Produtos incluídos:</p>
+                <div className="flex flex-wrap gap-1">
+                  {selectedProducts.map((p) => (
+                    <span key={p.id} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                      {p.name} - R$ {p.price.toFixed(2)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between mb-4">
               <span className="font-medium text-foreground">Total</span>
               <span className="text-2xl font-bold text-primary">

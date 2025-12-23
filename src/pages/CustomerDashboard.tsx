@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, ShoppingCart, Plus, Minus, X } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -60,9 +60,10 @@ interface Product {
   image_url: string | null;
 }
 
-interface CartItem {
-  product: Product;
-  quantity: number;
+interface SelectedProduct {
+  id: string;
+  name: string;
+  price: number;
 }
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -79,9 +80,7 @@ export default function CustomerDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [showCart, setShowCart] = useState(false);
-  const [purchasingProducts, setPurchasingProducts] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState("agendar");
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -220,69 +219,19 @@ export default function CustomerDashboard() {
     }
   };
 
-  const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      if (existing) {
-        return prev.map(item =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
-    toast.success(`${product.name} adicionado ao carrinho`);
-  };
-
-  const removeFromCart = (productId: string) => {
-    setCart(prev => prev.filter(item => item.product.id !== productId));
-  };
-
-  const updateQuantity = (productId: string, delta: number) => {
-    setCart(prev =>
-      prev.map(item => {
-        if (item.product.id === productId) {
-          const newQty = item.quantity + delta;
-          return newQty > 0 ? { ...item, quantity: newQty } : item;
-        }
-        return item;
-      }).filter(item => item.quantity > 0)
-    );
-  };
-
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-
-  const handlePurchaseProducts = async () => {
-    if (!user || cart.length === 0) return;
-
-    setPurchasingProducts(true);
-    try {
-      // Create order for products (no scheduling)
-      const { data: orderData, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          customer_id: user.id,
-          status: "pending",
-          total_price: cartTotal,
-          notes: `Compra de produtos: ${cart.map(i => `${i.quantity}x ${i.product.name}`).join(", ")}`,
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      toast.success("Pedido de produtos realizado com sucesso!");
-      setCart([]);
-      setShowCart(false);
-      fetchOrders();
-      setActiveTab("pedidos");
-    } catch (err) {
-      console.error("Error purchasing products:", err);
-      toast.error("Erro ao realizar compra");
-    } finally {
-      setPurchasingProducts(false);
+  const addProduct = (product: Product) => {
+    const exists = selectedProducts.find(p => p.id === product.id);
+    if (exists) {
+      setSelectedProducts(prev => prev.filter(p => p.id !== product.id));
+      toast.info(`${product.name} removido`);
+    } else {
+      setSelectedProducts(prev => [...prev, { id: product.id, name: product.name, price: product.price }]);
+      toast.success(`${product.name} adicionado ao pedido`);
     }
+  };
+
+  const isProductSelected = (productId: string) => {
+    return selectedProducts.some(p => p.id === productId);
   };
 
   if (loading) {
@@ -383,118 +332,54 @@ export default function CustomerDashboard() {
                   <Package className="h-5 w-5 text-primary" />
                   Produtos
                 </h2>
-                {cart.length > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setShowCart(true)}
-                    className="gap-2"
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    ({cart.reduce((s, i) => s + i.quantity, 0)})
-                  </Button>
+                {selectedProducts.length > 0 && (
+                  <Badge variant="default" className="gap-1">
+                    {selectedProducts.length} selecionado(s)
+                  </Badge>
                 )}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {products.map((product) => (
-                  <Card 
-                    key={product.id} 
-                    className="glass border-border/50 overflow-hidden rounded-2xl cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => addToCart(product)}
-                  >
-                    <div className="aspect-square bg-muted/50 flex items-center justify-center rounded-t-2xl overflow-hidden relative">
-                      {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Package className="h-6 w-6 text-muted-foreground" />
-                      )}
-                      <div className="absolute inset-0 bg-primary/0 hover:bg-primary/20 flex items-center justify-center opacity-0 hover:opacity-100 transition-all">
-                        <Plus className="h-6 w-6 text-primary-foreground" />
+                {products.map((product) => {
+                  const selected = isProductSelected(product.id);
+                  return (
+                    <Card 
+                      key={product.id} 
+                      className={`glass overflow-hidden rounded-2xl transition-colors ${
+                        selected ? "border-primary bg-primary/5" : "border-border/50 hover:border-primary/50"
+                      }`}
+                    >
+                      <div className="aspect-square bg-muted/50 flex items-center justify-center overflow-hidden relative">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Package className="h-6 w-6 text-muted-foreground" />
+                        )}
+                        {selected && (
+                          <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <CardContent className="p-2">
-                      <h3 className="font-medium text-foreground text-xs truncate">{product.name}</h3>
-                      <p className="text-primary font-bold text-xs">R$ {Number(product.price).toFixed(2)}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Shopping Cart Modal */}
-          {showCart && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-              <Card className="w-full max-w-md mx-4 glass">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    Carrinho
-                  </CardTitle>
-                  <Button variant="ghost" size="icon" onClick={() => setShowCart(false)}>
-                    <X className="h-5 w-5" />
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {cart.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">Carrinho vazio</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {cart.map((item) => (
-                        <div key={item.product.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
-                          <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                            {item.product.image_url ? (
-                              <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <Package className="h-5 w-5 text-muted-foreground" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-foreground text-sm truncate">{item.product.name}</p>
-                            <p className="text-primary text-sm">R$ {Number(item.product.price).toFixed(2)}</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, -1)}>
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQuantity(item.product.id, 1)}>
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeFromCart(item.product.id)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                      <div className="pt-3 border-t border-border/50">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="font-medium text-foreground">Total</span>
-                          <span className="font-bold text-primary text-lg">R$ {cartTotal.toFixed(2)}</span>
-                        </div>
+                      <CardContent className="p-2 space-y-1">
+                        <h3 className="font-medium text-foreground text-xs truncate">{product.name}</h3>
+                        <p className="text-primary font-bold text-xs">R$ {Number(product.price).toFixed(2)}</p>
                         <Button 
-                          className="w-full" 
-                          onClick={handlePurchaseProducts}
-                          disabled={purchasingProducts}
+                          size="sm" 
+                          variant={selected ? "secondary" : "default"}
+                          className="w-full h-7 text-xs"
+                          onClick={() => addProduct(product)}
                         >
-                          {purchasingProducts ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <ShoppingCart className="h-4 w-4 mr-2" />
-                          )}
-                          Finalizar Compra
+                          {selected ? "Remover" : "Adicionar"}
                         </Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -518,8 +403,10 @@ export default function CustomerDashboard() {
             {/* Scheduling Tab */}
             <TabsContent value="agendar">
               <AppointmentScheduler 
+                selectedProducts={selectedProducts}
                 onAppointmentCreated={() => {
                   fetchOrders();
+                  setSelectedProducts([]);
                   setActiveTab("pedidos");
                 }} 
               />
