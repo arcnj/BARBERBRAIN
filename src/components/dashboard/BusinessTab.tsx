@@ -27,7 +27,8 @@ export function BusinessTab() {
           status,
           scheduled_at,
           customer_id,
-          barber_id
+          barber_id,
+          preferred_barber_id
         `)
         .gte("scheduled_at", currentMonthStart)
         .lte("scheduled_at", currentMonthEnd)
@@ -159,9 +160,11 @@ export function BusinessTab() {
     };
   });
 
-  // Calculate barber performance
+  // Calculate barber performance - use preferred_barber_id if barber_id is null
   const barberPerformance = barbers?.map(barber => {
-    const barberOrders = currentMonthOrders?.filter(o => o.barber_id === barber.id) || [];
+    const barberOrders = currentMonthOrders?.filter(o => 
+      (o.barber_id === barber.id) || (!o.barber_id && o.preferred_barber_id === barber.id)
+    ) || [];
     const revenue = barberOrders.reduce((sum, o) => sum + Number(o.total_price || 0), 0);
     const clients = barberOrders.length;
     const ticket = clients > 0 ? revenue / clients : 0;
