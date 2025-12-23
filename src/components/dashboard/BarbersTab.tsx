@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, User } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Camera, Upload } from "lucide-react";
 
 interface Barber {
   id: string;
@@ -39,6 +40,7 @@ interface Barber {
   email: string | null;
   phone: string | null;
   active: boolean;
+  avatar_url: string | null;
 }
 
 export function BarbersTab() {
@@ -51,6 +53,11 @@ export function BarbersTab() {
   const [adminPassword, setAdminPassword] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const newBarberFileRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -88,10 +95,31 @@ export function BarbersTab() {
 
     setSubmitting(true);
     try {
+      let avatarUrl: string | null = null;
+
+      // Upload avatar if selected
+      if (avatarFile) {
+        const fileExt = avatarFile.name.split(".").pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("barbers")
+          .upload(fileName, avatarFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrl } = supabase.storage
+          .from("barbers")
+          .getPublicUrl(fileName);
+
+        avatarUrl = publicUrl.publicUrl;
+      }
+
       const { error } = await supabase.from("barbers").insert({
         name: formData.name.trim(),
         email: formData.email.trim() || null,
         phone: formData.phone.trim() || null,
+        avatar_url: avatarUrl,
       });
 
       if (error) throw error;
@@ -105,6 +133,48 @@ export function BarbersTab() {
       toast.error("Erro ao adicionar barbeiro");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAvatarUpload = async (barberId: string, file: File) => {
+    setUploadingAvatar(barberId);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${barberId}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("barbers")
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrl } = supabase.storage
+        .from("barbers")
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from("barbers")
+        .update({ avatar_url: publicUrl.publicUrl })
+        .eq("id", barberId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Foto atualizada com sucesso!");
+      fetchBarbers();
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      toast.error("Erro ao fazer upload da foto");
+    } finally {
+      setUploadingAvatar(null);
+    }
+  };
+
+  const handleNewBarberFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
     }
   };
 
@@ -154,6 +224,8 @@ export function BarbersTab() {
 
   const resetForm = () => {
     setFormData({ name: "", email: "", phone: "" });
+    setAvatarFile(null);
+    setPreviewUrl(null);
   };
 
   if (loading) {
@@ -186,6 +258,36 @@ export function BarbersTab() {
               <DialogTitle>Adicionar Barbeiro</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Avatar upload for new barber */}
+              <div className="flex flex-col items-center gap-3">
+                <Label>Foto do Barbeiro</Label>
+                <div 
+                  className="relative cursor-pointer group"
+                  onClick={() => newBarberFileRef.current?.click()}
+                >
+                  <Avatar className="h-24 w-24 border-2 border-dashed border-muted-foreground/30 group-hover:border-primary transition-colors">
+                    {previewUrl ? (
+                      <AvatarImage src={previewUrl} alt="Preview" className="object-cover" />
+                    ) : (
+                      <AvatarFallback className="bg-muted">
+                        <Camera className="h-8 w-8 text-muted-foreground" />
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Upload className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <input
+                  ref={newBarberFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleNewBarberFileChange}
+                />
+                <p className="text-xs text-muted-foreground">Clique para adicionar foto</p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name">Nome *</Label>
                 <Input
@@ -257,6 +359,7 @@ export function BarbersTab() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[80px]">Foto</TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Telefone</TableHead>
@@ -267,6 +370,45 @@ export function BarbersTab() {
             <TableBody>
               {barbers.map((barber) => (
                 <TableRow key={barber.id}>
+                  <TableCell>
+                    <div className="relative group">
+                      <Avatar className="h-12 w-12 cursor-pointer" onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) handleAvatarUpload(barber.id, file);
+                        };
+                        input.click();
+                      }}>
+                        {barber.avatar_url ? (
+                          <AvatarImage src={barber.avatar_url} alt={barber.name} className="object-cover" />
+                        ) : (
+                          <AvatarFallback className="bg-muted text-muted-foreground">
+                            {barber.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        )}
+                        {uploadingAvatar === barber.id && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                            <Loader2 className="h-5 w-5 animate-spin text-white" />
+                          </div>
+                        )}
+                      </Avatar>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/*';
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) handleAvatarUpload(barber.id, file);
+                        };
+                        input.click();
+                      }}>
+                        <Camera className="h-4 w-4 text-white" />
+                      </div>
+                    </div>
+                  </TableCell>
                   <TableCell className="font-medium">{barber.name}</TableCell>
                   <TableCell>{barber.email || "-"}</TableCell>
                   <TableCell>{barber.phone || "-"}</TableCell>

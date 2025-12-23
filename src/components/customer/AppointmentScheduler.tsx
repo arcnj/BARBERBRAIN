@@ -32,6 +32,7 @@ interface Service {
 interface Barber {
   id: string;
   name: string;
+  avatar_url: string | null;
 }
 
 interface TimeSlot {
@@ -91,7 +92,7 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
     try {
       const [servicesRes, barbersRes] = await Promise.all([
         supabase.from("services").select("*").eq("active", true).order("category"),
-        supabase.from("barbers").select("id, name").eq("active", true),
+        supabase.from("barbers").select("id, name, avatar_url").eq("active", true),
       ]);
 
       if (servicesRes.error) throw servicesRes.error;
@@ -378,28 +379,64 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
         </CardContent>
       </Card>
 
-      {/* Barber Selection */}
+      {/* Barber Selection - Visual Grid */}
       <Card className="glass border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <User className="h-5 w-5 text-primary" />
-            Escolha o Barbeiro
+            Selecione um profissional
           </CardTitle>
-          <CardDescription>Selecione o profissional para ver os horários disponíveis</CardDescription>
+          <CardDescription>Escolha o barbeiro para ver os horários disponíveis</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={preferredBarber} onValueChange={handleBarberChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione um barbeiro" />
-            </SelectTrigger>
-            <SelectContent>
+          {barbers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum barbeiro disponível
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {barbers.map((barber) => (
-                <SelectItem key={barber.id} value={barber.id}>
-                  {barber.name}
-                </SelectItem>
+                <div
+                  key={barber.id}
+                  onClick={() => handleBarberChange(barber.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-3 rounded-xl cursor-pointer transition-all",
+                    preferredBarber === barber.id
+                      ? "bg-primary/10 ring-2 ring-primary"
+                      : "hover:bg-muted/50"
+                  )}
+                >
+                  <div className={cn(
+                    "relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 transition-colors",
+                    preferredBarber === barber.id ? "border-primary" : "border-border"
+                  )}>
+                    {barber.avatar_url ? (
+                      <img 
+                        src={barber.avatar_url} 
+                        alt={barber.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <User className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    {preferredBarber === barber.id && (
+                      <div className="absolute bottom-0 right-0 bg-primary rounded-full p-0.5">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium text-center",
+                    preferredBarber === barber.id ? "text-primary" : "text-foreground"
+                  )}>
+                    {barber.name}
+                  </span>
+                </div>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          )}
         </CardContent>
       </Card>
 
