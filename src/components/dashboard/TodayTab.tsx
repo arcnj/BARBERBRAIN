@@ -27,7 +27,7 @@ export function TodayTab() {
           scheduled_at,
           customer_id,
           barber_id,
-          profiles!orders_customer_id_fkey(full_name),
+          profiles!orders_customer_id_profiles_fkey(full_name),
           barbers(name)
         `)
         .gte("scheduled_at", startOfToday)
