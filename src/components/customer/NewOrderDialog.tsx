@@ -253,12 +253,12 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
                 <User className="h-4 w-4" />
                 Preferência de barbeiro (opcional)
               </Label>
-              <Select value={preferredBarber} onValueChange={setPreferredBarber}>
+              <Select value={preferredBarber} onValueChange={(val) => setPreferredBarber(val === "none" ? "" : val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Sem preferência" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem preferência</SelectItem>
+                  <SelectItem value="none">Sem preferência</SelectItem>
                   {barbers.map((barber) => (
                     <SelectItem key={barber.id} value={barber.id}>
                       {barber.name}
