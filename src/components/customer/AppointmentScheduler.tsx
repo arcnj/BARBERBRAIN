@@ -68,10 +68,16 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
   }, []);
 
   useEffect(() => {
-    if (selectedDate) {
+    if (selectedDate && preferredBarber) {
       fetchAvailableSlots(selectedDate);
     }
   }, [selectedDate, preferredBarber]);
+
+  // Reset date and time when barber changes
+  const handleBarberChange = (barberId: string) => {
+    setPreferredBarber(barberId);
+    setSelectedTime("");
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -186,6 +192,15 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
       toast({
         title: "Atenção",
         description: "Selecione pelo menos um serviço",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!preferredBarber) {
+      toast({
+        title: "Atenção",
+        description: "Selecione um barbeiro",
         variant: "destructive",
       });
       return;
@@ -343,17 +358,16 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <User className="h-5 w-5 text-primary" />
-            Preferência de Barbeiro
+            Escolha o Barbeiro
           </CardTitle>
-          <CardDescription>Opcional - deixe em branco para qualquer barbeiro</CardDescription>
+          <CardDescription>Selecione o profissional para ver os horários disponíveis</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={preferredBarber} onValueChange={(val) => setPreferredBarber(val === "none" ? "" : val)}>
+          <Select value={preferredBarber} onValueChange={handleBarberChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Sem preferência" />
+              <SelectValue placeholder="Selecione um barbeiro" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Sem preferência</SelectItem>
               {barbers.map((barber) => (
                 <SelectItem key={barber.id} value={barber.id}>
                   {barber.name}
@@ -364,46 +378,48 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
         </CardContent>
       </Card>
 
-      {/* Date Selection */}
-      <Card className="glass border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <CalendarIcon className="h-5 w-5 text-primary" />
-            Escolha a Data
-          </CardTitle>
-          <CardDescription>Selecione o dia do agendamento</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !selectedDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? format(selectedDate, "PPP", { locale: ptBR }) : "Selecione uma data"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                disabled={(date) => isBefore(date, startOfDay(new Date())) || isAfter(date, addDays(new Date(), 30))}
-                initialFocus
-                locale={ptBR}
-                className="p-3 pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-        </CardContent>
-      </Card>
+      {/* Date Selection - Only show after barber is selected */}
+      {preferredBarber && (
+        <Card className="glass border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              Escolha a Data
+            </CardTitle>
+            <CardDescription>Selecione o dia do agendamento</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !selectedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? format(selectedDate, "PPP", { locale: ptBR }) : "Selecione uma data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  disabled={(date) => isBefore(date, startOfDay(new Date())) || isAfter(date, addDays(new Date(), 30))}
+                  initialFocus
+                  locale={ptBR}
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Time Slots */}
-      {selectedDate && (
+      {preferredBarber && selectedDate && (
         <Card className="glass border-border/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -411,7 +427,7 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
               Horários Disponíveis
             </CardTitle>
             <CardDescription>
-              {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+              {format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })} - {barbers.find(b => b.id === preferredBarber)?.name}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -421,7 +437,7 @@ export function AppointmentScheduler({ onAppointmentCreated }: AppointmentSchedu
               </div>
             ) : availableSlots.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                Nenhum horário disponível nesta data
+                Nenhum horário disponível nesta data para este barbeiro
               </p>
             ) : (
               <div className="grid grid-cols-4 gap-2">
