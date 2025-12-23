@@ -1,0 +1,74 @@
+import { cn } from "@/lib/utils";
+import { Calendar, Users, TrendingUp, Lightbulb, Settings, Scissors } from "lucide-react";
+
+interface NavigationProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
+const tabs = [
+  { id: "hoje", label: "Hoje", icon: Calendar },
+  { id: "clientes", label: "Clientes", icon: Users },
+  { id: "negocio", label: "Negócio", icon: TrendingUp },
+  { id: "sugestoes", label: "IA Coach", icon: Lightbulb },
+];
+
+export function Navigation({ activeTab, onTabChange }: NavigationProps) {
+  return (
+    <nav className="sticky top-16 z-40 glass border-b border-border/50">
+      <div className="container">
+        <div className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-hide">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all whitespace-nowrap",
+                  isActive 
+                    ? "bg-primary text-primary-foreground" 
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+export function BottomNavigation({ activeTab, onTabChange }: NavigationProps) {
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 lg:hidden">
+      <div className="flex items-center justify-around py-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={cn(
+                "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[64px]",
+                isActive 
+                  ? "text-primary" 
+                  : "text-muted-foreground"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-xs font-medium">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
