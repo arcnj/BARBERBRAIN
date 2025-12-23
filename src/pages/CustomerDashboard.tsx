@@ -7,10 +7,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Order {
   id: string;
@@ -55,6 +67,8 @@ export default function CustomerDashboard() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState("agendar");
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -86,8 +100,7 @@ export default function CustomerDashboard() {
           )
         `)
         .eq("customer_id", user.id)
-        .in("status", ["pending", "confirmed", "in_progress"])
-        .order("created_at", { ascending: false });
+        .order("scheduled_at", { ascending: false });
 
       if (error) throw error;
 
@@ -123,6 +136,55 @@ export default function CustomerDashboard() {
   const handleLogout = async () => {
     await signOut();
     navigate("/auth");
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    setCancellingOrderId(orderId);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", orderId)
+        .eq("customer_id", user?.id);
+
+      if (error) throw error;
+
+      toast.success("Agendamento cancelado com sucesso!");
+      fetchOrders();
+    } catch (err) {
+      console.error("Error cancelling order:", err);
+      toast.error("Erro ao cancelar agendamento");
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  const handleEditOrder = (order: Order) => {
+    // For now, we'll cancel the current order and redirect to scheduling
+    // A full edit would require more complex state management
+    setEditingOrder(order);
+  };
+
+  const confirmEditOrder = async () => {
+    if (!editingOrder) return;
+    
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "cancelled" })
+        .eq("id", editingOrder.id)
+        .eq("customer_id", user?.id);
+
+      if (error) throw error;
+
+      toast.success("Agendamento cancelado. Faça um novo agendamento.");
+      fetchOrders();
+      setEditingOrder(null);
+      setActiveTab("agendar");
+    } catch (err) {
+      console.error("Error editing order:", err);
+      toast.error("Erro ao editar agendamento");
+    }
   };
 
   if (loading) {
@@ -262,70 +324,159 @@ export default function CustomerDashboard() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {orders.map((order) => (
-                    <Card key={order.id} className="glass border-border/50">
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base">
-                            Agendamento #{order.id.slice(0, 8)}
-                          </CardTitle>
-                          <Badge variant={statusMap[order.status]?.variant || "secondary"}>
-                            {statusMap[order.status]?.label || order.status}
-                          </Badge>
-                        </div>
-                        <CardDescription className="flex items-center gap-4 mt-1">
-                          {order.scheduled_at ? (
-                            <span className="flex items-center gap-1 text-primary font-medium">
-                              <Calendar className="h-3.5 w-3.5" />
-                              {format(new Date(order.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3.5 w-3.5" />
-                              {format(new Date(order.created_at), "dd/MM/yyyy", { locale: ptBR })}
-                            </span>
-                          )}
-                          {order.preferred_barber && (
-                            <span className="flex items-center gap-1">
-                              <User className="h-3.5 w-3.5" />
-                              {order.preferred_barber.name}
-                            </span>
-                          )}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {/* Services */}
-                        <div className="space-y-1 mb-3">
-                          {order.order_items.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center justify-between text-sm"
-                            >
-                              <span className="text-foreground">{item.service.name}</span>
-                              <span className="text-muted-foreground">
-                                R$ {Number(item.price).toFixed(2)}
+                  {orders.map((order) => {
+                    const isCancelled = order.status === "cancelled";
+                    const isCompleted = order.status === "completed";
+                    const canModify = order.status === "pending" && !isCancelled && !isCompleted;
+
+                    return (
+                      <Card 
+                        key={order.id} 
+                        className={`glass border-border/50 ${isCancelled ? "opacity-60" : ""}`}
+                      >
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base">
+                              Agendamento #{order.id.slice(0, 8)}
+                            </CardTitle>
+                            <Badge variant={statusMap[order.status]?.variant || "secondary"}>
+                              {statusMap[order.status]?.label || order.status}
+                            </Badge>
+                          </div>
+                          <CardDescription className="flex items-center gap-4 mt-1">
+                            {order.scheduled_at ? (
+                              <span className={`flex items-center gap-1 font-medium ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>
+                                <Calendar className="h-3.5 w-3.5" />
+                                {format(new Date(order.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
                               </span>
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5" />
+                                {format(new Date(order.created_at), "dd/MM/yyyy", { locale: ptBR })}
+                              </span>
+                            )}
+                            {order.preferred_barber && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3.5 w-3.5" />
+                                {order.preferred_barber.name}
+                              </span>
+                            )}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {/* Services */}
+                          <div className="space-y-1 mb-3">
+                            {order.order_items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between text-sm"
+                              >
+                                <span className={`text-foreground ${isCancelled ? "line-through" : ""}`}>
+                                  {item.service.name}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  R$ {Number(item.price).toFixed(2)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Total */}
+                          <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                            <span className="font-medium text-foreground">Total</span>
+                            <span className={`font-bold ${isCancelled ? "text-muted-foreground" : "text-primary"}`}>
+                              R$ {Number(order.total_price).toFixed(2)}
+                            </span>
+                          </div>
+
+                          {/* Notes */}
+                          {order.notes && (
+                            <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
+                              {order.notes}
+                            </p>
+                          )}
+
+                          {/* Action Buttons */}
+                          {canModify && (
+                            <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="flex-1"
+                                    onClick={() => setEditingOrder(order)}
+                                  >
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Editar Agendamento</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Para editar o agendamento, o atual será cancelado e você poderá fazer um novo. Deseja continuar?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={confirmEditOrder}>
+                                      Continuar
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    className="flex-1"
+                                    disabled={cancellingOrderId === order.id}
+                                  >
+                                    {cancellingOrderId === order.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                      <XCircle className="h-4 w-4 mr-2" />
+                                    )}
+                                    Cancelar
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Cancelar Agendamento</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja cancelar este agendamento? Esta ação não pode ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Voltar</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleCancelOrder(order.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Confirmar Cancelamento
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
-                          ))}
-                        </div>
+                          )}
 
-                        {/* Total */}
-                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                          <span className="font-medium text-foreground">Total</span>
-                          <span className="font-bold text-primary">
-                            R$ {Number(order.total_price).toFixed(2)}
-                          </span>
-                        </div>
-
-                        {/* Notes */}
-                        {order.notes && (
-                          <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
-                            {order.notes}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                          {/* Cancelled Message */}
+                          {isCancelled && (
+                            <div className="mt-4 pt-3 border-t border-border/50">
+                              <p className="text-sm text-destructive flex items-center gap-2">
+                                <XCircle className="h-4 w-4" />
+                                Este agendamento foi cancelado
+                              </p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
