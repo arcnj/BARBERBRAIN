@@ -1,91 +1,192 @@
 import { StatCard } from "@/components/ui/stat-card";
 import { AlertCard } from "@/components/ui/alert-card";
-import { DollarSign, Users, Clock, Calendar, AlertTriangle, TrendingUp, UserX } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from "recharts";
-
-const occupancyData = [
-  { hour: "9h", value: 100, occupied: true },
-  { hour: "10h", value: 100, occupied: true },
-  { hour: "11h", value: 100, occupied: true },
-  { hour: "12h", value: 50, occupied: false },
-  { hour: "13h", value: 0, occupied: false },
-  { hour: "14h", value: 25, occupied: false },
-  { hour: "15h", value: 100, occupied: true },
-  { hour: "16h", value: 0, occupied: false },
-  { hour: "17h", value: 100, occupied: true },
-  { hour: "18h", value: 75, occupied: false },
-  { hour: "19h", value: 100, occupied: true },
-  { hour: "20h", value: 50, occupied: false },
-];
-
-const upcomingAppointments = [
-  { time: "15:00", client: "João Silva", service: "Corte + Barba", barber: "Carlos" },
-  { time: "15:30", client: "Pedro Santos", service: "Corte Degradê", barber: "Junior" },
-  { time: "16:00", client: "Lucas Mendes", service: "Barba Completa", barber: "Carlos" },
-];
+import { DollarSign, Users, Clock, TrendingUp, UserX, Loader2 } from "lucide-react";
+import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export function TodayTab() {
+  const { user } = useAuth();
+  const today = new Date();
+  const startOfToday = startOfDay(today).toISOString();
+  const endOfToday = endOfDay(today).toISOString();
+
+  // Fetch today's orders
+  const { data: todayOrders, isLoading: loadingOrders } = useQuery({
+    queryKey: ["today-orders", startOfToday, endOfToday],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select(`
+          id,
+          total_price,
+          status,
+          scheduled_at,
+          customer_id,
+          barber_id,
+          profiles!orders_customer_id_fkey(full_name),
+          barbers(name)
+        `)
+        .gte("scheduled_at", startOfToday)
+        .lte("scheduled_at", endOfToday)
+        .order("scheduled_at", { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 30000,
+  });
+
+  // Fetch last week's orders for comparison
+  const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 1 }).toISOString();
+  const lastWeekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 1 }).toISOString();
+  
+  const { data: lastWeekOrders } = useQuery({
+    queryKey: ["last-week-orders", lastWeekStart, lastWeekEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, total_price, status")
+        .gte("scheduled_at", lastWeekStart)
+        .lte("scheduled_at", lastWeekEnd)
+        .neq("status", "cancelled");
+
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60000,
+  });
+
+  // Calculate stats
+  const completedOrders = todayOrders?.filter(o => o.status === "completed") || [];
+  const confirmedOrders = todayOrders?.filter(o => o.status === "confirmed" || o.status === "pending") || [];
+  const cancelledOrders = todayOrders?.filter(o => o.status === "cancelled") || [];
+  
+  const todayRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_price || 0), 0);
+  const clientsServed = completedOrders.length;
+  const ticketMedio = clientsServed > 0 ? todayRevenue / clientsServed : 0;
+  const noShows = cancelledOrders.length;
+
+  // Calculate occupation rate based on business hours (9h-20h = 11 hours)
+  const businessHours = 11;
+  const totalSlots = businessHours * 2; // 30 min slots
+  const occupiedSlots = (completedOrders.length + confirmedOrders.length);
+  const occupationRate = totalSlots > 0 ? Math.round((occupiedSlots / totalSlots) * 100) : 0;
+
+  // Generate occupation data by hour
+  const occupancyData = Array.from({ length: 12 }, (_, i) => {
+    const hour = 9 + i;
+    const hourStart = new Date(today);
+    hourStart.setHours(hour, 0, 0, 0);
+    const hourEnd = new Date(today);
+    hourEnd.setHours(hour + 1, 0, 0, 0);
+
+    const ordersInHour = todayOrders?.filter(o => {
+      const scheduledAt = new Date(o.scheduled_at!);
+      return scheduledAt >= hourStart && scheduledAt < hourEnd && o.status !== "cancelled";
+    }) || [];
+
+    return {
+      hour: `${hour}h`,
+      value: ordersInHour.length > 0 ? 100 : 0,
+      occupied: ordersInHour.length > 0,
+    };
+  });
+
+  // Get upcoming appointments (confirmed or pending, scheduled for after now)
+  const now = new Date();
+  const upcomingAppointments = todayOrders
+    ?.filter(o => {
+      const scheduledAt = new Date(o.scheduled_at!);
+      return scheduledAt > now && (o.status === "confirmed" || o.status === "pending");
+    })
+    .slice(0, 5) || [];
+
+  // Get greeting based on time of day
+  const hour = now.getHours();
+  let greeting = "Bom dia";
+  if (hour >= 12 && hour < 18) greeting = "Boa tarde";
+  if (hour >= 18) greeting = "Boa noite";
+
+  // Get user name from profile
+  const { data: profile } = useQuery({
+    queryKey: ["user-profile", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) return null;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const userName = profile?.full_name?.split(" ")[0] || "usuário";
+
+  if (loadingOrders) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-24 lg:pb-6">
       {/* Greeting */}
       <div className="animate-fade-in">
-        <h2 className="font-display text-2xl font-bold text-foreground">Boa tarde, João! ☀️</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground">{greeting}, {userName}! ☀️</h2>
         <p className="text-muted-foreground mt-1">Aqui está o resumo do seu dia</p>
       </div>
       
       {/* Alerts */}
-      <div className="space-y-3">
-        <AlertCard
-          icon={AlertTriangle}
-          variant="warning"
-          title="15 clientes em risco precisam de atenção"
-          description="18 deles são VIPs! Envie mensagens agora."
-          actionLabel="Ver lista e mensagens"
-        />
-        
+      {confirmedOrders.length === 0 && (
         <AlertCard
           icon={Clock}
           variant="info"
-          title="5 horários vagos à tarde"
-          description="Ofereça para clientes em risco para preencher a agenda."
-          actionLabel="Oferecer para clientes"
+          title="Sem agendamentos para hoje"
+          description="Aproveite para atualizar promoções ou entrar em contato com clientes."
         />
-      </div>
+      )}
       
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Faturamento Hoje"
-          value="R$ 847,50"
+          value={`R$ ${todayRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
           icon={DollarSign}
-          trend={{ value: "+12% vs média", isPositive: true }}
-          subtitle="7 dias"
+          subtitle="Atendimentos concluídos"
           className="[animation-delay:100ms]"
         />
         
         <StatCard
           title="Clientes Atendidos"
-          value="14"
+          value={String(clientsServed)}
           icon={Users}
-          subtitle="Ticket médio: R$ 60,54"
+          subtitle={ticketMedio > 0 ? `Ticket médio: R$ ${ticketMedio.toFixed(2)}` : "Aguardando atendimentos"}
           className="[animation-delay:200ms]"
         />
         
         <StatCard
           title="Taxa de Ocupação"
-          value="68%"
+          value={`${occupationRate}%`}
           icon={TrendingUp}
-          trend={{ value: "+5%", isPositive: true }}
-          subtitle="vs semana passada"
+          subtitle={`${occupiedSlots} de ${totalSlots} horários`}
           className="[animation-delay:300ms]"
         />
         
         <StatCard
-          title="No-shows"
-          value="2"
+          title="Cancelamentos"
+          value={String(noShows)}
           icon={UserX}
-          trend={{ value: "-8%", isPositive: false }}
-          subtitle="vs terça passada"
+          subtitle="Hoje"
           className="[animation-delay:400ms]"
         />
       </div>
@@ -138,32 +239,41 @@ export function TodayTab() {
             <h3 className="font-display font-semibold text-foreground">Próximos Atendimentos</h3>
             <p className="text-sm text-muted-foreground">Agenda de hoje</p>
           </div>
-          <button className="text-sm text-primary font-medium hover:underline">
-            Ver agenda completa
-          </button>
         </div>
         
-        <div className="space-y-3">
-          {upcomingAppointments.map((apt, index) => (
-            <div 
-              key={index}
-              className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-            >
-              <div className="text-center min-w-[48px]">
-                <p className="font-display font-bold text-foreground">{apt.time}</p>
+        {upcomingAppointments.length === 0 ? (
+          <p className="text-muted-foreground text-center py-4">
+            Nenhum atendimento agendado para o restante do dia
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {upcomingAppointments.map((apt: any) => (
+              <div 
+                key={apt.id}
+                className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+              >
+                <div className="text-center min-w-[48px]">
+                  <p className="font-display font-bold text-foreground">
+                    {format(new Date(apt.scheduled_at), "HH:mm")}
+                  </p>
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground truncate">
+                    {apt.profiles?.full_name || "Cliente"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    R$ {Number(apt.total_price || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">{apt.barbers?.name || "Sem barbeiro"}</p>
+                </div>
               </div>
-              
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground truncate">{apt.client}</p>
-                <p className="text-sm text-muted-foreground">{apt.service}</p>
-              </div>
-              
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">{apt.barber}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
