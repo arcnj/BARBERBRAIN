@@ -10,6 +10,7 @@ import { BusinessTab } from "@/components/dashboard/BusinessTab";
 import { SuggestionsTab } from "@/components/dashboard/SuggestionsTab";
 import { ServicesTab } from "@/components/dashboard/ServicesTab";
 import { PromotionsTab } from "@/components/dashboard/PromotionsTab";
+import { BarbersTab } from "@/components/dashboard/BarbersTab";
 import { Helmet } from "react-helmet";
 import { Loader2 } from "lucide-react";
 
@@ -35,6 +36,8 @@ export default function Dashboard() {
         return <AgendaTab />;
       case "clientes":
         return <ClientsTab />;
+      case "barbeiros":
+        return <BarbersTab />;
       case "servicos":
         return <ServicesTab />;
       case "promocoes":
