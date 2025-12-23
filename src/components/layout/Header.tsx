@@ -1,11 +1,18 @@
-import { Bell, Menu, Search, Brain } from "lucide-react";
+import { Bell, Menu, Search, Brain, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderProps {
   onMenuClick?: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const { signOut, user } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <header className="sticky top-0 z-50 glass border-b border-border/50">
       <div className="container flex h-16 items-center justify-between gap-4">
@@ -43,8 +50,17 @@ export function Header({ onMenuClick }: HeaderProps) {
           </Button>
           
           <div className="h-8 w-8 rounded-full bg-gradient-gold flex items-center justify-center text-primary-foreground font-display font-semibold text-sm ml-2">
-            JB
+            {user?.email?.charAt(0).toUpperCase() || "U"}
           </div>
+
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleSignOut}
+            title="Sair"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </div>
     </header>
