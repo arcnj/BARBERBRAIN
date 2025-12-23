@@ -309,10 +309,10 @@ export default function CustomerDashboard() {
                 <Package className="h-5 w-5 text-primary" />
                 Produtos
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {products.map((product) => (
-                  <Card key={product.id} className="glass border-border/50 overflow-hidden">
-                    <div className="aspect-square bg-muted/50 flex items-center justify-center">
+                  <Card key={product.id} className="glass border-border/50 overflow-hidden rounded-2xl">
+                    <div className="aspect-square bg-muted/50 flex items-center justify-center rounded-t-2xl overflow-hidden">
                       {product.image_url ? (
                         <img
                           src={product.image_url}
@@ -320,12 +320,12 @@ export default function CustomerDashboard() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <Package className="h-10 w-10 text-muted-foreground" />
+                        <Package className="h-6 w-6 text-muted-foreground" />
                       )}
                     </div>
-                    <CardContent className="p-3">
-                      <h3 className="font-medium text-foreground text-sm truncate">{product.name}</h3>
-                      <p className="text-primary font-bold text-sm">R$ {Number(product.price).toFixed(2)}</p>
+                    <CardContent className="p-2">
+                      <h3 className="font-medium text-foreground text-xs truncate">{product.name}</h3>
+                      <p className="text-primary font-bold text-xs">R$ {Number(product.price).toFixed(2)}</p>
                     </CardContent>
                   </Card>
                 ))}

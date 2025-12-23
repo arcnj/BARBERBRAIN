@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Scissors, User } from "lucide-react";
+import { Loader2, Scissors, User, Package } from "lucide-react";
 
 interface Service {
   id: string;
@@ -35,6 +35,13 @@ interface Barber {
   name: string;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  price: number;
+  image_url: string | null;
+}
+
 interface NewOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,7 +53,9 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [preferredBarber, setPreferredBarber] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
@@ -61,15 +70,18 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [servicesRes, barbersRes] = await Promise.all([
+      const [servicesRes, barbersRes, productsRes] = await Promise.all([
         supabase.from("services").select("*").eq("active", true).order("category"),
         supabase.from("barbers").select("id, name").eq("active", true),
+        supabase.from("products").select("id, name, price, image_url").eq("active", true).order("name"),
       ]);
 
       if (servicesRes.error) throw servicesRes.error;
       if (barbersRes.error) throw barbersRes.error;
+      if (productsRes.error) throw productsRes.error;
 
       setServices(servicesRes.data || []);
+      setProducts(productsRes.data || []);
       setBarbers(barbersRes.data || []);
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -91,11 +103,24 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
     );
   };
 
+  const handleProductToggle = (productId: string) => {
+    setSelectedProducts((prev) =>
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
   const calculateTotal = () => {
-    return selectedServices.reduce((total, serviceId) => {
+    const servicesTotal = selectedServices.reduce((total, serviceId) => {
       const service = services.find((s) => s.id === serviceId);
       return total + (service?.price || 0);
     }, 0);
+    const productsTotal = selectedProducts.reduce((total, productId) => {
+      const product = products.find((p) => p.id === productId);
+      return total + (product?.price || 0);
+    }, 0);
+    return servicesTotal + productsTotal;
   };
 
   const handleSubmit = async () => {
@@ -153,6 +178,7 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
 
       // Reset form
       setSelectedServices([]);
+      setSelectedProducts([]);
       setPreferredBarber("");
       setNotes("");
       onOpenChange(false);
@@ -247,6 +273,43 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
               )}
             </div>
 
+            {/* Products */}
+            {products.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-base font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Produtos (opcional)
+                </Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {products.map((product) => (
+                    <div
+                      key={product.id}
+                      className={`flex flex-col items-center p-2 rounded-xl border transition-colors cursor-pointer ${
+                        selectedProducts.includes(product.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => handleProductToggle(product.id)}
+                    >
+                      <div className="w-12 h-12 rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden mb-1">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Package className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <p className="text-xs font-medium text-foreground text-center truncate w-full">{product.name}</p>
+                      <p className="text-xs text-primary font-semibold">R$ {Number(product.price).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Preferred Barber */}
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
@@ -280,8 +343,8 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
             </div>
 
             {/* Total */}
-            {selectedServices.length > 0 && (
-              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+            {(selectedServices.length > 0 || selectedProducts.length > 0) && (
+              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/20">
                 <span className="font-medium text-foreground">Total</span>
                 <span className="text-xl font-bold text-primary">
                   R$ {calculateTotal().toFixed(2)}
