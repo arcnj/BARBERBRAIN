@@ -279,14 +279,18 @@ export default function CustomerDashboard() {
 
           {/* Tabs for Scheduling and Orders */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="agendar" className="flex items-center gap-2">
                 <CalendarPlus className="h-4 w-4" />
                 Agendar
               </TabsTrigger>
               <TabsTrigger value="pedidos" className="flex items-center gap-2">
                 <ClipboardList className="h-4 w-4" />
-                Meus Pedidos
+                Pedidos
+              </TabsTrigger>
+              <TabsTrigger value="cancelados" className="flex items-center gap-2">
+                <XCircle className="h-4 w-4" />
+                Cancelados
               </TabsTrigger>
             </TabsList>
 
@@ -300,13 +304,13 @@ export default function CustomerDashboard() {
               />
             </TabsContent>
 
-            {/* Orders Tab */}
+            {/* Orders Tab - Only non-cancelled orders */}
             <TabsContent value="pedidos">
               {loadingOrders ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : orders.length === 0 ? (
+              ) : orders.filter(o => o.status !== "cancelled").length === 0 ? (
                 <Card className="glass border-border/50">
                   <CardContent className="py-12 text-center">
                     <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -324,16 +328,12 @@ export default function CustomerDashboard() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {orders.map((order) => {
-                    const isCancelled = order.status === "cancelled";
+                  {orders.filter(o => o.status !== "cancelled").map((order) => {
                     const isCompleted = order.status === "completed";
-                    const canModify = order.status === "pending" && !isCancelled && !isCompleted;
+                    const canModify = order.status === "pending" && !isCompleted;
 
                     return (
-                      <Card 
-                        key={order.id} 
-                        className={`glass border-border/50 ${isCancelled ? "opacity-60" : ""}`}
-                      >
+                      <Card key={order.id} className="glass border-border/50">
                         <CardHeader className="pb-2">
                           <div className="flex items-center justify-between">
                             <CardTitle className="text-base">
@@ -345,7 +345,7 @@ export default function CustomerDashboard() {
                           </div>
                           <CardDescription className="flex items-center gap-4 mt-1">
                             {order.scheduled_at ? (
-                              <span className={`flex items-center gap-1 font-medium ${isCancelled ? "text-muted-foreground line-through" : "text-primary"}`}>
+                              <span className="flex items-center gap-1 font-medium text-primary">
                                 <Calendar className="h-3.5 w-3.5" />
                                 {format(new Date(order.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
                               </span>
@@ -364,49 +364,29 @@ export default function CustomerDashboard() {
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
-                          {/* Services */}
                           <div className="space-y-1 mb-3">
                             {order.order_items.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center justify-between text-sm"
-                              >
-                                <span className={`text-foreground ${isCancelled ? "line-through" : ""}`}>
-                                  {item.service.name}
-                                </span>
-                                <span className="text-muted-foreground">
-                                  R$ {Number(item.price).toFixed(2)}
-                                </span>
+                              <div key={item.id} className="flex items-center justify-between text-sm">
+                                <span className="text-foreground">{item.service.name}</span>
+                                <span className="text-muted-foreground">R$ {Number(item.price).toFixed(2)}</span>
                               </div>
                             ))}
                           </div>
 
-                          {/* Total */}
                           <div className="flex items-center justify-between pt-2 border-t border-border/50">
                             <span className="font-medium text-foreground">Total</span>
-                            <span className={`font-bold ${isCancelled ? "text-muted-foreground" : "text-primary"}`}>
-                              R$ {Number(order.total_price).toFixed(2)}
-                            </span>
+                            <span className="font-bold text-primary">R$ {Number(order.total_price).toFixed(2)}</span>
                           </div>
 
-                          {/* Notes */}
                           {order.notes && (
-                            <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
-                              {order.notes}
-                            </p>
+                            <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">{order.notes}</p>
                           )}
 
-                          {/* Action Buttons */}
                           {canModify && (
                             <div className="flex gap-2 mt-4 pt-3 border-t border-border/50">
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="flex-1"
-                                    onClick={() => setEditingOrder(order)}
-                                  >
+                                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditingOrder(order)}>
                                     <Pencil className="h-4 w-4 mr-2" />
                                     Editar
                                   </Button>
@@ -420,21 +400,14 @@ export default function CustomerDashboard() {
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Voltar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={confirmEditOrder}>
-                                      Continuar
-                                    </AlertDialogAction>
+                                    <AlertDialogAction onClick={confirmEditOrder}>Continuar</AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
 
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button 
-                                    variant="destructive" 
-                                    size="sm" 
-                                    className="flex-1"
-                                    disabled={cancellingOrderId === order.id}
-                                  >
+                                  <Button variant="destructive" size="sm" className="flex-1" disabled={cancellingOrderId === order.id}>
                                     {cancellingOrderId === order.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                     ) : (
@@ -452,7 +425,7 @@ export default function CustomerDashboard() {
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Voltar</AlertDialogCancel>
-                                    <AlertDialogAction 
+                                    <AlertDialogAction
                                       onClick={() => handleCancelOrder(order.id)}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
@@ -463,20 +436,70 @@ export default function CustomerDashboard() {
                               </AlertDialog>
                             </div>
                           )}
-
-                          {/* Cancelled Message */}
-                          {isCancelled && (
-                            <div className="mt-4 pt-3 border-t border-border/50">
-                              <p className="text-sm text-destructive flex items-center gap-2">
-                                <XCircle className="h-4 w-4" />
-                                Este agendamento foi cancelado
-                              </p>
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
                     );
                   })}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Cancelled Orders Tab */}
+            <TabsContent value="cancelados">
+              {loadingOrders ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : orders.filter(o => o.status === "cancelled").length === 0 ? (
+                <Card className="glass border-border/50">
+                  <CardContent className="py-12 text-center">
+                    <XCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">Nenhum agendamento cancelado</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {orders.filter(o => o.status === "cancelled").map((order) => (
+                    <Card key={order.id} className="glass border-border/50 opacity-70">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">
+                            Agendamento #{order.id.slice(0, 8)}
+                          </CardTitle>
+                          <Badge variant="destructive">Cancelado</Badge>
+                        </div>
+                        <CardDescription className="flex items-center gap-4 mt-1">
+                          {order.scheduled_at && (
+                            <span className="flex items-center gap-1 text-muted-foreground line-through">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {format(new Date(order.scheduled_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                            </span>
+                          )}
+                          {order.preferred_barber && (
+                            <span className="flex items-center gap-1">
+                              <User className="h-3.5 w-3.5" />
+                              {order.preferred_barber.name}
+                            </span>
+                          )}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-1 mb-3">
+                          {order.order_items.map((item) => (
+                            <div key={item.id} className="flex items-center justify-between text-sm">
+                              <span className="text-foreground line-through">{item.service.name}</span>
+                              <span className="text-muted-foreground">R$ {Number(item.price).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                          <span className="font-medium text-foreground">Total</span>
+                          <span className="font-bold text-muted-foreground">R$ {Number(order.total_price).toFixed(2)}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </TabsContent>
