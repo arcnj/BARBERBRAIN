@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Calendar, Users, TrendingUp, Lightbulb, Settings, Scissors } from "lucide-react";
+import { Calendar, Users, TrendingUp, Lightbulb, Scissors, Megaphone } from "lucide-react";
 
 interface NavigationProps {
   activeTab: string;
@@ -9,6 +9,8 @@ interface NavigationProps {
 const tabs = [
   { id: "hoje", label: "Hoje", icon: Calendar },
   { id: "clientes", label: "Clientes", icon: Users },
+  { id: "servicos", label: "Serviços", icon: Scissors },
+  { id: "promocoes", label: "Promoções", icon: Megaphone },
   { id: "negocio", label: "Negócio", icon: TrendingUp },
   { id: "sugestoes", label: "IA Coach", icon: Lightbulb },
 ];

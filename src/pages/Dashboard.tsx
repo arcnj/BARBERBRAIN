@@ -7,6 +7,8 @@ import { TodayTab } from "@/components/dashboard/TodayTab";
 import { ClientsTab } from "@/components/dashboard/ClientsTab";
 import { BusinessTab } from "@/components/dashboard/BusinessTab";
 import { SuggestionsTab } from "@/components/dashboard/SuggestionsTab";
+import { ServicesTab } from "@/components/dashboard/ServicesTab";
+import { PromotionsTab } from "@/components/dashboard/PromotionsTab";
 import { Helmet } from "react-helmet";
 import { Loader2 } from "lucide-react";
 
@@ -30,6 +32,10 @@ export default function Dashboard() {
         return <TodayTab />;
       case "clientes":
         return <ClientsTab />;
+      case "servicos":
+        return <ServicesTab />;
+      case "promocoes":
+        return <PromotionsTab />;
       case "negocio":
         return <BusinessTab />;
       case "sugestoes":

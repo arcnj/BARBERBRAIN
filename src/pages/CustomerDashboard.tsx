@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Helmet } from "react-helmet";
-import { Scissors, Plus, LogOut, Calendar, Clock, User, Loader2 } from "lucide-react";
+import { Scissors, Plus, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { NewOrderDialog } from "@/components/customer/NewOrderDialog";
@@ -30,6 +30,15 @@ interface Order {
   }[];
 }
 
+interface Promotion {
+  id: string;
+  title: string;
+  description: string | null;
+  discount_percentage: number | null;
+  discount_value: number | null;
+  end_date: string | null;
+}
+
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   pending: { label: "Pendente", variant: "secondary" },
   confirmed: { label: "Confirmado", variant: "default" },
@@ -42,6 +51,7 @@ export default function CustomerDashboard() {
   const navigate = useNavigate();
   const { user, role, loading, signOut } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [showNewOrder, setShowNewOrder] = useState(false);
 
@@ -88,9 +98,24 @@ export default function CustomerDashboard() {
     }
   };
 
+  const fetchPromotions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("promotions")
+        .select("id, title, description, discount_percentage, discount_value, end_date")
+        .eq("active", true);
+
+      if (error) throw error;
+      setPromotions(data || []);
+    } catch (err) {
+      console.error("Error fetching promotions:", err);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchOrders();
+      fetchPromotions();
     }
   }, [user]);
 
@@ -143,6 +168,51 @@ export default function CustomerDashboard() {
               Gerencie seus agendamentos e faça novos pedidos
             </p>
           </div>
+
+          {/* Promotions Section */}
+          {promotions.length > 0 && (
+            <div className="mb-8">
+              <h2 className="font-heading text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-primary" />
+                Promoções
+              </h2>
+              <div className="space-y-3">
+                {promotions.map((promo) => (
+                  <Card key={promo.id} className="glass border-primary/30 bg-primary/5">
+                    <CardContent className="py-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-foreground">{promo.title}</h3>
+                          {promo.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{promo.description}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {promo.discount_percentage && (
+                            <Badge variant="default" className="gap-1">
+                              <Percent className="h-3 w-3" />
+                              {promo.discount_percentage}% OFF
+                            </Badge>
+                          )}
+                          {promo.discount_value && (
+                            <Badge variant="default" className="gap-1">
+                              <BadgeDollarSign className="h-3 w-3" />
+                              R$ {promo.discount_value.toFixed(2)} OFF
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {promo.end_date && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* New Order Button */}
           <Button
