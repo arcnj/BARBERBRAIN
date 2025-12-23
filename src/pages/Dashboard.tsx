@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/layout/Header";
 import { Navigation, BottomNavigation } from "@/components/layout/Navigation";
 import { TodayTab } from "@/components/dashboard/TodayTab";
+import { AgendaTab } from "@/components/dashboard/AgendaTab";
 import { ClientsTab } from "@/components/dashboard/ClientsTab";
 import { BusinessTab } from "@/components/dashboard/BusinessTab";
 import { SuggestionsTab } from "@/components/dashboard/SuggestionsTab";
@@ -30,6 +31,8 @@ export default function Dashboard() {
     switch (activeTab) {
       case "hoje":
         return <TodayTab />;
+      case "agenda":
+        return <AgendaTab />;
       case "clientes":
         return <ClientsTab />;
       case "servicos":
