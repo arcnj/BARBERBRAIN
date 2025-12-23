@@ -32,7 +32,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, User, Camera, Upload } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface Barber {
   id: string;
@@ -48,22 +49,35 @@ export function BarbersTab() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [barberToDelete, setBarberToDelete] = useState<Barber | null>(null);
+  const [barberToEdit, setBarberToEdit] = useState<Barber | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const newBarberFileRef = useRef<HTMLInputElement>(null);
+  const editBarberFileRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
   });
+
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    active: true,
+  });
+
 
   useEffect(() => {
     fetchBarbers();
@@ -175,6 +189,82 @@ export function BarbersTab() {
       setAvatarFile(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
+    }
+  };
+
+  const handleEditBarberFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setEditAvatarFile(file);
+      const url = URL.createObjectURL(file);
+      setEditPreviewUrl(url);
+    }
+  };
+
+  const openEditDialog = (barber: Barber) => {
+    setBarberToEdit(barber);
+    setEditFormData({
+      name: barber.name,
+      email: barber.email || "",
+      phone: barber.phone || "",
+      active: barber.active,
+    });
+    setEditPreviewUrl(barber.avatar_url);
+    setEditAvatarFile(null);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barberToEdit || !editFormData.name.trim()) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      let avatarUrl: string | null = barberToEdit.avatar_url;
+
+      // Upload new avatar if selected
+      if (editAvatarFile) {
+        const fileExt = editAvatarFile.name.split(".").pop();
+        const fileName = `${barberToEdit.id}-${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("barbers")
+          .upload(fileName, editAvatarFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrl } = supabase.storage
+          .from("barbers")
+          .getPublicUrl(fileName);
+
+        avatarUrl = publicUrl.publicUrl;
+      }
+
+      const { error } = await supabase
+        .from("barbers")
+        .update({
+          name: editFormData.name.trim(),
+          email: editFormData.email.trim() || null,
+          phone: editFormData.phone.trim() || null,
+          active: editFormData.active,
+          avatar_url: avatarUrl,
+        })
+        .eq("id", barberToEdit.id);
+
+      if (error) throw error;
+
+      toast.success("Barbeiro atualizado com sucesso!");
+      setEditDialogOpen(false);
+      setBarberToEdit(null);
+      fetchBarbers();
+    } catch (error) {
+      console.error("Error updating barber:", error);
+      toast.error("Erro ao atualizar barbeiro");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -424,14 +514,24 @@ export function BarbersTab() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openDeleteDialog(barber)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(barber)}
+                        className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openDeleteDialog(barber)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -478,6 +578,111 @@ export function BarbersTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Barber Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Barbeiro</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            {/* Avatar upload for edit */}
+            <div className="flex flex-col items-center gap-3">
+              <Label>Foto do Barbeiro</Label>
+              <div 
+                className="relative cursor-pointer group"
+                onClick={() => editBarberFileRef.current?.click()}
+              >
+                <Avatar className="h-24 w-24 border-2 border-dashed border-muted-foreground/30 group-hover:border-primary transition-colors">
+                  {editPreviewUrl ? (
+                    <AvatarImage src={editPreviewUrl} alt="Preview" className="object-cover" />
+                  ) : (
+                    <AvatarFallback className="bg-muted">
+                      <Camera className="h-8 w-8 text-muted-foreground" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Upload className="h-6 w-6 text-white" />
+                </div>
+              </div>
+              <input
+                ref={editBarberFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleEditBarberFileChange}
+              />
+              <p className="text-xs text-muted-foreground">Clique para alterar a foto</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nome *</Label>
+              <Input
+                id="edit-name"
+                value={editFormData.name}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, name: e.target.value })
+                }
+                placeholder="Nome do barbeiro"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editFormData.email}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, email: e.target.value })
+                }
+                placeholder="email@exemplo.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Telefone</Label>
+              <Input
+                id="edit-phone"
+                value={editFormData.phone}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, phone: e.target.value })
+                }
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="edit-active">Status Ativo</Label>
+              <Switch
+                id="edit-active"
+                checked={editFormData.active}
+                onCheckedChange={(checked) =>
+                  setEditFormData({ ...editFormData, active: checked })
+                }
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
