@@ -28,7 +28,8 @@ export function TodayTab() {
           customer_id,
           barber_id,
           profiles!orders_customer_id_profiles_fkey(full_name),
-          barbers(name)
+          barber:barbers!orders_barber_id_fkey(name),
+          preferred_barber:barbers!orders_preferred_barber_id_fkey(name)
         `)
         .gte("scheduled_at", startOfToday)
         .lte("scheduled_at", endOfToday)
@@ -267,9 +268,9 @@ export function TodayTab() {
                   </p>
                 </div>
                 
-                <div className="text-right">
-                  <p className="text-sm text-muted-foreground">{apt.barbers?.name || "Sem barbeiro"}</p>
-                </div>
+                 <div className="text-right">
+                   <p className="text-sm text-muted-foreground">{apt.barber?.name || apt.preferred_barber?.name || "Sem barbeiro"}</p>
+                 </div>
               </div>
             ))}
           </div>

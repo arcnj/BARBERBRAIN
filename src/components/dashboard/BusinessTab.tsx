@@ -27,8 +27,7 @@ export function BusinessTab() {
           status,
           scheduled_at,
           customer_id,
-          barber_id,
-          barbers(name)
+          barber_id
         `)
         .gte("scheduled_at", currentMonthStart)
         .lte("scheduled_at", currentMonthEnd)
