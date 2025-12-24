@@ -37,12 +37,14 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick, onNavigate }: HeaderProps) {
-  const { signOut, user } = useAuth();
+  const { signOut, user, role } = useAuth();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  
+  const isAdmin = role === "admin";
 
   // Fetch upcoming appointments for notifications
   const { data: upcomingOrders } = useQuery({
@@ -248,16 +250,19 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
                   <Lock className="h-4 w-4 mr-2" />
                   Alterar Senha
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onNavigate?.("barbeiros")}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Gerenciar Funcionários
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigate?.("configuracoes")}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Configurações
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => onNavigate?.("barbeiros")}>
+                      <Users className="h-4 w-4 mr-2" />
+                      Gerenciar Funcionários
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onNavigate?.("configuracoes")}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Configurações
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4 mr-2" />
                   Sair
