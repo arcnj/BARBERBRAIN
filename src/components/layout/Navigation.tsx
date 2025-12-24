@@ -4,9 +4,13 @@ import { Calendar, Users, TrendingUp, Lightbulb, Scissors, Megaphone, CalendarDa
 interface NavigationProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
+  role?: "admin" | "barber" | "customer" | null;
 }
 
-const tabs = [
+// Tabs que apenas admin pode ver
+const adminOnlyTabs = ["servicos", "produtos", "promocoes", "negocio", "sugestoes", "barbeiros", "clientes"];
+
+const allTabs = [
   { id: "hoje", label: "Hoje", icon: Calendar },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "clientes", label: "Clientes", icon: Users },
@@ -18,7 +22,12 @@ const tabs = [
   { id: "sugestoes", label: "IA Coach", icon: Lightbulb },
 ];
 
-export function Navigation({ activeTab, onTabChange }: NavigationProps) {
+export function Navigation({ activeTab, onTabChange, role }: NavigationProps) {
+  // Filtrar tabs baseado no role
+  const tabs = role === "admin" 
+    ? allTabs 
+    : allTabs.filter(tab => !adminOnlyTabs.includes(tab.id));
+
   return (
     <nav className="sticky top-16 z-40 glass border-b border-border/50">
       <div className="container">
@@ -49,10 +58,15 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
   );
 }
 
-export function BottomNavigation({ activeTab, onTabChange }: NavigationProps) {
+export function BottomNavigation({ activeTab, onTabChange, role }: NavigationProps) {
+  // Filtrar tabs baseado no role
+  const tabs = role === "admin" 
+    ? allTabs 
+    : allTabs.filter(tab => !adminOnlyTabs.includes(tab.id));
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 lg:hidden">
-      <div className="flex items-center justify-around py-2">
+      <div className="flex items-center justify-around py-2 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
