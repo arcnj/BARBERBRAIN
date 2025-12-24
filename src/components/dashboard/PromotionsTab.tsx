@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Megaphone, Loader2, Calendar, Percent, Package, Scissors } from "lucide-react";
+import { Plus, Pencil, Trash2, Megaphone, Loader2, Calendar, Percent, Package, Scissors, User } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +26,12 @@ interface Service {
   name: string;
   price: number;
   category: string;
+  active: boolean;
+}
+
+interface Barber {
+  id: string;
+  name: string;
   active: boolean;
 }
 
@@ -49,6 +56,7 @@ interface Promotion {
   end_date: string | null;
   active: boolean;
   created_at: string;
+  barber_id: string | null;
   items?: PromotionItem[];
 }
 
@@ -56,6 +64,7 @@ export function PromotionsTab() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
@@ -64,7 +73,8 @@ export function PromotionsTab() {
     description: "",
     start_date: format(new Date(), "yyyy-MM-dd"),
     end_date: "",
-    active: true
+    active: true,
+    barber_id: ""
   });
   const [selectedItems, setSelectedItems] = useState<PromotionItem[]>([]);
 
@@ -74,15 +84,17 @@ export function PromotionsTab() {
 
   const fetchData = async () => {
     try {
-      const [promotionsRes, productsRes, servicesRes] = await Promise.all([
+      const [promotionsRes, productsRes, servicesRes, barbersRes] = await Promise.all([
         supabase.from("promotions").select("*").order("created_at", { ascending: false }),
         supabase.from("products").select("*").eq("active", true).order("name"),
-        supabase.from("services").select("*").eq("active", true).order("name")
+        supabase.from("services").select("*").eq("active", true).order("name"),
+        supabase.from("barbers").select("*").eq("active", true).order("name")
       ]);
 
       if (promotionsRes.error) throw promotionsRes.error;
       if (productsRes.error) throw productsRes.error;
       if (servicesRes.error) throw servicesRes.error;
+      if (barbersRes.error) throw barbersRes.error;
 
       // Fetch promotion items for each promotion
       const promotionsWithItems = await Promise.all(
@@ -99,6 +111,7 @@ export function PromotionsTab() {
       setPromotions(promotionsWithItems);
       setProducts(productsRes.data || []);
       setServices(servicesRes.data || []);
+      setBarbers(barbersRes.data || []);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
@@ -128,7 +141,8 @@ export function PromotionsTab() {
         discount_value: null,
         start_date: formData.start_date || new Date().toISOString(),
         end_date: formData.end_date || null,
-        active: formData.active
+        active: formData.active,
+        barber_id: formData.barber_id || null
       };
 
       let promotionId: string;
@@ -189,7 +203,8 @@ export function PromotionsTab() {
       description: promotion.description || "",
       start_date: format(new Date(promotion.start_date), "yyyy-MM-dd"),
       end_date: promotion.end_date ? format(new Date(promotion.end_date), "yyyy-MM-dd") : "",
-      active: promotion.active
+      active: promotion.active,
+      barber_id: promotion.barber_id || ""
     });
 
     // Load existing items with names
@@ -257,7 +272,8 @@ export function PromotionsTab() {
       description: "",
       start_date: format(new Date(), "yyyy-MM-dd"),
       end_date: "",
-      active: true
+      active: true,
+      barber_id: ""
     });
     setSelectedItems([]);
   };
@@ -380,6 +396,30 @@ export function PromotionsTab() {
                     onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                   />
                 </div>
+              </div>
+
+              {/* Barber Selection */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Barbeiro Responsável (opcional)
+                </Label>
+                <Select
+                  value={formData.barber_id}
+                  onValueChange={(value) => setFormData({ ...formData, barber_id: value === "none" ? "" : value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um barbeiro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Todos os barbeiros</SelectItem>
+                    {barbers.map((barber) => (
+                      <SelectItem key={barber.id} value={barber.id}>
+                        {barber.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Products Selection */}
@@ -580,6 +620,14 @@ export function PromotionsTab() {
                           +{promotion.items.length - 3} mais itens
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {/* Show barber */}
+                  {promotion.barber_id && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <User className="h-4 w-4" />
+                      <span>{barbers.find(b => b.id === promotion.barber_id)?.name || "Barbeiro"}</span>
                     </div>
                   )}
                   
