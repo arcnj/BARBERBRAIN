@@ -101,7 +101,7 @@ export function AgendaTab() {
             full_name,
             phone
           ),
-          barbers (
+          barbers!orders_barber_id_fkey (
             name
           ),
           order_items (
