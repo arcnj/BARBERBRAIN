@@ -32,9 +32,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil, KeyRound, Check, Copy } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
+import { Badge } from "@/components/ui/badge";
 
 interface Barber {
   id: string;
@@ -43,20 +44,24 @@ interface Barber {
   phone: string | null;
   active: boolean;
   avatar_url: string | null;
+  user_id: string | null;
 }
 
 export function BarbersTab() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [createLoginDialogOpen, setCreateLoginDialogOpen] = useState(false);
   const [barberToDelete, setBarberToDelete] = useState<Barber | null>(null);
   const [barberToEdit, setBarberToEdit] = useState<Barber | null>(null);
+  const [barberForLogin, setBarberForLogin] = useState<Barber | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [creatingLogin, setCreatingLogin] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const newBarberFileRef = useRef<HTMLInputElement>(null);
@@ -65,6 +70,7 @@ export function BarbersTab() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{ email: string; password: string } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -77,6 +83,11 @@ export function BarbersTab() {
     email: "",
     phone: "",
     active: true,
+  });
+
+  const [loginFormData, setLoginFormData] = useState({
+    email: "",
+    password: "",
   });
 
 
@@ -319,6 +330,73 @@ export function BarbersTab() {
     setPreviewUrl(null);
   };
 
+  const openCreateLoginDialog = (barber: Barber) => {
+    setBarberForLogin(barber);
+    setLoginFormData({
+      email: barber.email || "",
+      password: generatePassword(),
+    });
+    setGeneratedCredentials(null);
+    setCreateLoginDialogOpen(true);
+  };
+
+  const generatePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    let password = "";
+    for (let i = 0; i < 10; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  const handleCreateLogin = async () => {
+    if (!barberForLogin || !loginFormData.email || !loginFormData.password) {
+      toast.error("Email e senha são obrigatórios");
+      return;
+    }
+
+    setCreatingLogin(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      const response = await supabase.functions.invoke("create-barber-user", {
+        body: {
+          email: loginFormData.email,
+          password: loginFormData.password,
+          name: barberForLogin.name,
+          phone: barberForLogin.phone,
+          barberId: barberForLogin.id,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      setGeneratedCredentials({
+        email: loginFormData.email,
+        password: loginFormData.password,
+      });
+      
+      toast.success("Login criado com sucesso!");
+      fetchBarbers();
+    } catch (error: any) {
+      console.error("Error creating login:", error);
+      toast.error(error.message || "Erro ao criar login");
+    } finally {
+      setCreatingLogin(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copiado!");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -504,15 +582,27 @@ export function BarbersTab() {
                   <TableCell>{barber.email || "-"}</TableCell>
                   <TableCell>{barber.phone || "-"}</TableCell>
                   <TableCell>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        barber.active
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                      }`}
-                    >
-                      {barber.active ? "Ativo" : "Inativo"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          barber.active
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        }`}
+                      >
+                        {barber.active ? "Ativo" : "Inativo"}
+                      </span>
+                      {barber.user_id ? (
+                        <Badge variant="outline" className="text-xs">
+                          <Check className="h-3 w-3 mr-1" />
+                          Login
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs text-muted-foreground">
+                          Sem login
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
@@ -520,6 +610,17 @@ export function BarbersTab() {
                         phone={barber.phone} 
                         name={barber.name}
                       />
+                      {role === "admin" && !barber.user_id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openCreateLoginDialog(barber)}
+                          title="Criar login para funcionário"
+                          className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                        >
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -686,6 +787,126 @@ export function BarbersTab() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Login Dialog */}
+      <Dialog open={createLoginDialogOpen} onOpenChange={(open) => {
+        setCreateLoginDialogOpen(open);
+        if (!open) {
+          setGeneratedCredentials(null);
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Criar Login para Funcionário</DialogTitle>
+          </DialogHeader>
+          
+          {generatedCredentials ? (
+            <div className="space-y-4 py-4">
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <p className="text-sm text-green-400 font-medium mb-3">
+                  ✓ Login criado com sucesso para {barberForLogin?.name}!
+                </p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Anote as credenciais abaixo. A senha não poderá ser recuperada.
+                </p>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-2 bg-background rounded border">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="font-mono text-sm">{generatedCredentials.email}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => copyToClipboard(generatedCredentials.email)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-2 bg-background rounded border">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Senha</p>
+                      <p className="font-mono text-sm">{generatedCredentials.password}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => copyToClipboard(generatedCredentials.password)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button onClick={() => setCreateLoginDialogOpen(false)}>
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                Crie um login para <strong>{barberForLogin?.name}</strong> acessar o sistema.
+                O funcionário terá acesso apenas à visualização da agenda.
+              </p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="login-email">Email *</Label>
+                <Input
+                  id="login-email"
+                  type="email"
+                  value={loginFormData.email}
+                  onChange={(e) => setLoginFormData({ ...loginFormData, email: e.target.value })}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="login-password">Senha *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="login-password"
+                    value={loginFormData.password}
+                    onChange={(e) => setLoginFormData({ ...loginFormData, password: e.target.value })}
+                    placeholder="Senha do funcionário"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => setLoginFormData({ ...loginFormData, password: generatePassword() })}
+                  >
+                    Gerar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A senha deve ter pelo menos 6 caracteres
+                </p>
+              </div>
+              
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreateLoginDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleCreateLogin} 
+                  disabled={creatingLogin || !loginFormData.email || loginFormData.password.length < 6}
+                >
+                  {creatingLogin && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Criar Login
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

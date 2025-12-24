@@ -81,13 +81,13 @@ export default function Dashboard() {
       
       <div className="min-h-screen bg-background">
         <Header onNavigate={handleNavigate} />
-        <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
+        <Navigation activeTab={activeTab} onTabChange={setActiveTab} role={role} />
         
         <main className="container py-6">
           {renderTab()}
         </main>
         
-        <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+        <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} role={role} />
       </div>
     </>
   );
