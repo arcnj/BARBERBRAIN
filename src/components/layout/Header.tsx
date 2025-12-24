@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProfileDialog } from "./ProfileDialog";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -39,6 +40,7 @@ interface HeaderProps {
 export function Header({ onMenuClick, onNavigate }: HeaderProps) {
   const { signOut, user, role } = useAuth();
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -242,7 +244,7 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onNavigate?.("perfil")}>
+                <DropdownMenuItem onClick={() => setProfileOpen(true)}>
                   <User className="h-4 w-4 mr-2" />
                   Meu Perfil
                 </DropdownMenuItem>
@@ -311,6 +313,9 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Profile Dialog */}
+      <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </>
   );
 }
