@@ -352,6 +352,7 @@ export type Database = {
       promotions: {
         Row: {
           active: boolean | null
+          barber_id: string | null
           created_at: string
           description: string | null
           discount_percentage: number | null
@@ -364,6 +365,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
+          barber_id?: string | null
           created_at?: string
           description?: string | null
           discount_percentage?: number | null
@@ -376,6 +378,7 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
+          barber_id?: string | null
           created_at?: string
           description?: string | null
           discount_percentage?: number | null
@@ -386,7 +389,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "promotions_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_combos: {
         Row: {
