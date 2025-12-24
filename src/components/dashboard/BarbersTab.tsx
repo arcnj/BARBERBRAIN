@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 
 interface Barber {
   id: string;
@@ -515,6 +516,10 @@ export function BarbersTab() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <WhatsAppButton 
+                        phone={barber.phone} 
+                        name={barber.name}
+                      />
                       <Button
                         variant="ghost"
                         size="icon"

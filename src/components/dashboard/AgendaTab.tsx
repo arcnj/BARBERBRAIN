@@ -16,6 +16,7 @@ import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays } from "date
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package, RefreshCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
@@ -529,10 +530,16 @@ export function AgendaTab() {
                               {order.profiles?.full_name || "Cliente"}
                             </span>
                             {order.profiles?.phone && (
-                              <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {order.profiles.phone}
-                              </span>
+                              <>
+                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {order.profiles.phone}
+                                </span>
+                                <WhatsAppButton 
+                                  phone={order.profiles.phone} 
+                                  name={order.profiles.full_name}
+                                />
+                              </>
                             )}
                           </div>
 
