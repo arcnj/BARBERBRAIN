@@ -50,6 +50,42 @@ export type Database = {
         }
         Relationships: []
       }
+      combo_services: {
+        Row: {
+          combo_id: string
+          created_at: string
+          id: string
+          service_id: string
+        }
+        Insert: {
+          combo_id: string
+          created_at?: string
+          id?: string
+          service_id: string
+        }
+        Update: {
+          combo_id?: string
+          created_at?: string
+          id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "combo_services_combo_id_fkey"
+            columns: ["combo_id"]
+            isOneToOne: false
+            referencedRelation: "service_combos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "combo_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string
@@ -299,6 +335,45 @@ export type Database = {
           id?: string
           start_date?: string
           title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      service_combos: {
+        Row: {
+          active: boolean
+          created_at: string
+          current_redemptions: number
+          description: string | null
+          id: string
+          max_redemptions: number | null
+          name: string
+          original_price: number
+          promotional_price: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          current_redemptions?: number
+          description?: string | null
+          id?: string
+          max_redemptions?: number | null
+          name: string
+          original_price?: number
+          promotional_price: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          current_redemptions?: number
+          description?: string | null
+          id?: string
+          max_redemptions?: number | null
+          name?: string
+          original_price?: number
+          promotional_price?: number
           updated_at?: string
         }
         Relationships: []
