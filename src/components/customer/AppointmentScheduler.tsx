@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Clock, Loader2, Scissors, User, Check } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift } from "lucide-react";
 
 interface Service {
   id: string;
@@ -27,6 +28,17 @@ interface Service {
   category: string;
   price: number;
   duration_minutes: number;
+}
+
+interface ServiceCombo {
+  id: string;
+  name: string;
+  description: string | null;
+  promotional_price: number;
+  original_price: number;
+  max_redemptions: number | null;
+  current_redemptions: number;
+  services: Service[];
 }
 
 interface Barber {
@@ -60,8 +72,10 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
   const { user } = useAuth();
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
+  const [combos, setCombos] = useState<ServiceCombo[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedCombo, setSelectedCombo] = useState<ServiceCombo | null>(null);
   const [preferredBarber, setPreferredBarber] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("");
@@ -90,9 +104,10 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [servicesRes, barbersRes] = await Promise.all([
+      const [servicesRes, barbersRes, combosRes] = await Promise.all([
         supabase.from("services").select("*").eq("active", true).order("category"),
         supabase.from("barbers").select("id, name, avatar_url").eq("active", true),
+        supabase.from("service_combos").select("*").eq("active", true),
       ]);
 
       if (servicesRes.error) throw servicesRes.error;
@@ -100,6 +115,33 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
 
       setServices(servicesRes.data || []);
       setBarbers(barbersRes.data || []);
+
+      // Fetch services for each combo
+      if (combosRes.data && combosRes.data.length > 0) {
+        const combosWithServices = await Promise.all(
+          combosRes.data.map(async (combo) => {
+            const { data: comboServicesData } = await supabase
+              .from("combo_services")
+              .select("service_id")
+              .eq("combo_id", combo.id);
+
+            const serviceIds = (comboServicesData || []).map(cs => cs.service_id);
+            
+            if (serviceIds.length > 0) {
+              const comboServices = (servicesRes.data || []).filter(s => serviceIds.includes(s.id));
+              return { ...combo, services: comboServices };
+            }
+            
+            return { ...combo, services: [] };
+          })
+        );
+        
+        // Filter combos that still have available slots
+        const availableCombos = combosWithServices.filter(
+          combo => combo.max_redemptions === null || combo.current_redemptions < combo.max_redemptions
+        );
+        setCombos(availableCombos);
+      }
     } catch (err) {
       console.error("Error fetching data:", err);
       toast({
@@ -179,6 +221,10 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
   };
 
   const handleServiceToggle = (serviceId: string) => {
+    // If selecting individual services, clear combo
+    if (selectedCombo) {
+      setSelectedCombo(null);
+    }
     setSelectedServices((prev) =>
       prev.includes(serviceId)
         ? prev.filter((id) => id !== serviceId)
@@ -186,7 +232,25 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
     );
   };
 
+  const handleSelectCombo = (combo: ServiceCombo) => {
+    if (selectedCombo?.id === combo.id) {
+      // Deselect combo
+      setSelectedCombo(null);
+      setSelectedServices([]);
+    } else {
+      // Select combo and its services
+      setSelectedCombo(combo);
+      setSelectedServices(combo.services.map(s => s.id));
+    }
+  };
+
   const calculateTotal = () => {
+    // If combo is selected, use promotional price
+    if (selectedCombo) {
+      const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
+      return selectedCombo.promotional_price + productsTotal;
+    }
+    
     const servicesTotal = selectedServices.reduce((total, serviceId) => {
       const service = services.find((s) => s.id === serviceId);
       return total + (service?.price || 0);
@@ -282,6 +346,14 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
         if (productsError) throw productsError;
       }
 
+      // If a combo was used, increment its redemption count
+      if (selectedCombo) {
+        await supabase
+          .from("service_combos")
+          .update({ current_redemptions: selectedCombo.current_redemptions + 1 })
+          .eq("id", selectedCombo.id);
+      }
+
       toast({
         title: "Agendamento confirmado!",
         description: `Seu horário foi marcado para ${format(scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
@@ -289,6 +361,7 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
 
       // Reset form
       setSelectedServices([]);
+      setSelectedCombo(null);
       setPreferredBarber("");
       setSelectedDate(undefined);
       setSelectedTime("");
@@ -327,12 +400,94 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
 
   return (
     <div className="space-y-6">
+      {/* Combos Section */}
+      {combos.length > 0 && (
+        <Card className="glass border-primary/30 bg-gradient-to-br from-primary/5 to-transparent">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Gift className="h-5 w-5 text-primary" />
+              Combos Promocionais
+            </CardTitle>
+            <CardDescription>Aproveite nossos pacotes com preços especiais!</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {combos.map((combo) => {
+              const discount = combo.original_price > 0 
+                ? Math.round(((combo.original_price - combo.promotional_price) / combo.original_price) * 100)
+                : 0;
+              const remaining = combo.max_redemptions 
+                ? combo.max_redemptions - combo.current_redemptions 
+                : null;
+              
+              return (
+                <div
+                  key={combo.id}
+                  className={cn(
+                    "p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    selectedCombo?.id === combo.id
+                      ? "border-primary bg-primary/10 shadow-md"
+                      : "border-border hover:border-primary/50 bg-background/50"
+                  )}
+                  onClick={() => handleSelectCombo(combo)}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedCombo?.id === combo.id}
+                        onCheckedChange={() => handleSelectCombo(combo)}
+                      />
+                      <div>
+                        <p className="font-semibold text-foreground">{combo.name}</p>
+                        {combo.description && (
+                          <p className="text-xs text-muted-foreground">{combo.description}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-primary">
+                          R$ {combo.promotional_price.toFixed(2)}
+                        </span>
+                        {discount > 0 && (
+                          <Badge className="bg-green-500 text-white text-xs">
+                            -{discount}%
+                          </Badge>
+                        )}
+                      </div>
+                      {combo.original_price > 0 && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          R$ {combo.original_price.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {combo.services.map((service) => (
+                      <Badge key={service.id} variant="secondary" className="text-xs">
+                        {service.name}
+                      </Badge>
+                    ))}
+                  </div>
+
+                  {remaining !== null && remaining <= 20 && (
+                    <Badge variant="destructive" className="text-xs">
+                      Últimas {remaining} vagas!
+                    </Badge>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Services Selection */}
       <Card className="glass border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Scissors className="h-5 w-5 text-primary" />
-            Escolha os Serviços
+            {combos.length > 0 ? "Ou escolha serviços individuais" : "Escolha os Serviços"}
           </CardTitle>
           <CardDescription>Selecione os serviços desejados</CardDescription>
         </CardHeader>
@@ -346,8 +501,10 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
                     key={service.id}
                     className={cn(
                       "flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
-                      selectedServices.includes(service.id)
+                      selectedServices.includes(service.id) && !selectedCombo
                         ? "border-primary bg-primary/5 shadow-sm"
+                        : selectedServices.includes(service.id) && selectedCombo
+                        ? "border-primary/50 bg-primary/5 opacity-70"
                         : "border-border hover:border-primary/50"
                     )}
                     onClick={() => handleServiceToggle(service.id)}
@@ -356,6 +513,7 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
                       <Checkbox
                         checked={selectedServices.includes(service.id)}
                         onCheckedChange={() => handleServiceToggle(service.id)}
+                        disabled={selectedCombo !== null}
                       />
                       <div>
                         <p className="font-medium text-foreground">{service.name}</p>
