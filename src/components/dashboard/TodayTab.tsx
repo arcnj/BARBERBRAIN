@@ -56,9 +56,9 @@ export function TodayTab() {
         .lte("scheduled_at", endOfToday)
         .order("scheduled_at", { ascending: true });
 
-      // If barber (not admin), filter by their barber_id
+      // If barber (not admin), filter by their barber_id or preferred_barber_id
       if (!isAdmin && barberId) {
-        query = query.eq("barber_id", barberId);
+        query = query.or(`barber_id.eq.${barberId},preferred_barber_id.eq.${barberId}`);
       }
 
       const { data, error } = await query;
@@ -85,7 +85,7 @@ export function TodayTab() {
         .neq("status", "cancelled");
 
       if (!isAdmin && barberId) {
-        query = query.eq("barber_id", barberId);
+        query = query.or(`barber_id.eq.${barberId},preferred_barber_id.eq.${barberId}`);
       }
 
       const { data, error } = await query;
