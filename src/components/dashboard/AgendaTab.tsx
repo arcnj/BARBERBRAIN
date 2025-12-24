@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+type TabType = "pending" | "completed" | "cancelled";
 
 interface Order {
   id: string;
@@ -65,6 +67,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; icon: ty
 export function AgendaTab() {
   const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [activeTab, setActiveTab] = useState<TabType>("pending");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newAppointment, setNewAppointment] = useState({
     customerName: "",
@@ -99,7 +102,7 @@ export function AgendaTab() {
 
   // Fetch orders for selected date - filtered by barber if not admin
   const {
-    data: orders,
+    data: allOrders,
     isLoading,
     isFetching,
     isError,
@@ -146,7 +149,6 @@ export function AgendaTab() {
         `)
         .gte("scheduled_at", startDate)
         .lte("scheduled_at", endDate)
-        .neq("status", "cancelled")
         .order("scheduled_at", { ascending: true });
 
       // If barber (not admin), filter by their barber_id or preferred_barber_id
@@ -164,6 +166,22 @@ export function AgendaTab() {
     refetchOnWindowFocus: true,
     enabled: isAdmin || !!barberId,
   });
+
+  // Filter orders by tab
+  const pendingStatuses: OrderStatus[] = ["pending", "confirmed", "in_progress"];
+  const pendingOrders = allOrders?.filter(o => pendingStatuses.includes(o.status)) || [];
+  const completedOrders = allOrders?.filter(o => o.status === "completed") || [];
+  const cancelledOrders = allOrders?.filter(o => o.status === "cancelled") || [];
+
+  const getOrdersForTab = () => {
+    switch (activeTab) {
+      case "pending": return pendingOrders;
+      case "completed": return completedOrders;
+      case "cancelled": return cancelledOrders;
+    }
+  };
+
+  const orders = getOrdersForTab();
 
   // Fetch services for the new appointment form (only when dialog opens)
   const { data: services } = useQuery({
@@ -332,7 +350,7 @@ export function AgendaTab() {
         <div>
           <h2 className="text-2xl font-bold capitalize">{getDateLabel(selectedDate)}</h2>
           <p className="text-muted-foreground">
-            {orders?.length || 0} agendamento{orders?.length !== 1 ? "s" : ""}
+            {pendingOrders.length} pendente{pendingOrders.length !== 1 ? "s" : ""} • {completedOrders.length} finalizado{completedOrders.length !== 1 ? "s" : ""} • {cancelledOrders.length} cancelado{cancelledOrders.length !== 1 ? "s" : ""}
             {!isAdmin && currentBarber && (
               <span className="text-primary ml-2">• Sua agenda</span>
             )}
@@ -516,53 +534,75 @@ export function AgendaTab() {
         </div>
       </div>
 
-      {/* Appointments list */}
-      {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-20 bg-muted rounded" />
+      {/* Tabs for different statuses */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="pending" className="gap-2">
+            <AlertCircle className="h-4 w-4" />
+            Pendentes ({pendingOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Finalizados ({completedOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="cancelled" className="gap-2">
+            <XCircle className="h-4 w-4" />
+            Cancelados ({cancelledOrders.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={activeTab} className="mt-4">
+          {/* Appointments list */}
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-6">
+                    <div className="h-20 bg-muted rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : isError ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium">Erro ao carregar a agenda</p>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Tente atualizar para buscar os pedidos mais recentes.
+                </p>
+                <Button variant="outline" onClick={() => refetch()} className="gap-2">
+                  <RefreshCcw className="h-4 w-4" />
+                  Atualizar
+                </Button>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      ) : isError ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">Erro ao carregar a agenda</p>
-            <p className="text-muted-foreground text-sm mb-4">
-              Tente atualizar para buscar os pedidos mais recentes.
-            </p>
-            <Button variant="outline" onClick={() => refetch()} className="gap-2">
-              <RefreshCcw className="h-4 w-4" />
-              Atualizar
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (orders?.length ?? 0) === 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium">Nenhum agendamento</p>
-            <p className="text-muted-foreground text-sm mb-4">
-              Não há agendamentos para esta data
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {isToday(selectedDate) && (
-                <Button variant="default" onClick={() => setSelectedDate(addDays(new Date(), 1))}>
-                  Ver amanhã
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => refetch()} className="gap-2">
-                <RefreshCcw className="h-4 w-4" />
-                Atualizar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
+          ) : orders.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium">
+                  {activeTab === "pending" && "Nenhum agendamento pendente"}
+                  {activeTab === "completed" && "Nenhum atendimento finalizado"}
+                  {activeTab === "cancelled" && "Nenhum agendamento cancelado"}
+                </p>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Não há registros para esta data
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {isToday(selectedDate) && activeTab === "pending" && (
+                    <Button variant="default" onClick={() => setSelectedDate(addDays(new Date(), 1))}>
+                      Ver amanhã
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => refetch()} className="gap-2">
+                    <RefreshCcw className="h-4 w-4" />
+                    Atualizar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
         <div className="space-y-4">
           {orders?.map((order) => {
             const StatusIcon = statusConfig[order.status].icon;
@@ -723,8 +763,10 @@ export function AgendaTab() {
               </Card>
             );
           })}
-        </div>
-      )}
+          </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
