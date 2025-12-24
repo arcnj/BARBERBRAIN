@@ -32,6 +32,9 @@ interface Order {
     full_name: string;
     phone: string | null;
   } | null;
+  barbers: {
+    name: string;
+  } | null;
   order_items: {
     id: string;
     price: number;
@@ -97,6 +100,9 @@ export function AgendaTab() {
           profiles!orders_customer_id_profiles_fkey (
             full_name,
             phone
+          ),
+          barbers (
+            name
           ),
           order_items (
             id,
@@ -524,7 +530,7 @@ export function AgendaTab() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-2">
                           {/* Customer info */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">
                               {order.profiles?.full_name || "Cliente"}
@@ -540,6 +546,12 @@ export function AgendaTab() {
                                   name={order.profiles.full_name}
                                 />
                               </>
+                            )}
+                            {order.barbers?.name && (
+                              <Badge variant="outline" className="ml-2">
+                                <Scissors className="h-3 w-3 mr-1" />
+                                {order.barbers.name}
+                              </Badge>
                             )}
                           </div>
 
