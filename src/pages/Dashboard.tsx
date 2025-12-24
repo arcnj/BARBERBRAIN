@@ -29,6 +29,10 @@ export default function Dashboard() {
     }
   }, [user, role, loading, navigate]);
 
+  const handleNavigate = (tab: string) => {
+    setActiveTab(tab);
+  };
+
   const renderTab = () => {
     switch (activeTab) {
       case "hoje":
@@ -49,6 +53,8 @@ export default function Dashboard() {
         return <BusinessTab />;
       case "sugestoes":
         return <SuggestionsTab />;
+      case "configuracoes":
+        return <BusinessTab />;
       default:
         return <TodayTab />;
     }
@@ -74,7 +80,7 @@ export default function Dashboard() {
       </Helmet>
       
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header onNavigate={handleNavigate} />
         <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
         
         <main className="container py-6">
