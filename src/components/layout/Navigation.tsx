@@ -7,10 +7,8 @@ interface NavigationProps {
   role?: "admin" | "barber" | "customer" | null;
 }
 
-// Tabs que apenas admin pode ver
-const adminOnlyTabs = ["servicos", "produtos", "promocoes", "negocio", "sugestoes", "barbeiros", "clientes"];
-
-const allTabs = [
+// Tabs disponíveis para cada role
+const adminTabs = [
   { id: "hoje", label: "Hoje", icon: Calendar },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "clientes", label: "Clientes", icon: Users },
@@ -22,11 +20,14 @@ const allTabs = [
   { id: "sugestoes", label: "IA Coach", icon: Lightbulb },
 ];
 
+const barberTabs = [
+  { id: "hoje", label: "Hoje", icon: Calendar },
+  { id: "agenda", label: "Agenda", icon: CalendarDays },
+];
+
 export function Navigation({ activeTab, onTabChange, role }: NavigationProps) {
-  // Filtrar tabs baseado no role
-  const tabs = role === "admin" 
-    ? allTabs 
-    : allTabs.filter(tab => !adminOnlyTabs.includes(tab.id));
+  // Admins veem todas as tabs, barbeiros só veem hoje e agenda
+  const tabs = role === "admin" ? adminTabs : barberTabs;
 
   return (
     <nav className="sticky top-16 z-40 glass border-b border-border/50">
@@ -59,10 +60,8 @@ export function Navigation({ activeTab, onTabChange, role }: NavigationProps) {
 }
 
 export function BottomNavigation({ activeTab, onTabChange, role }: NavigationProps) {
-  // Filtrar tabs baseado no role
-  const tabs = role === "admin" 
-    ? allTabs 
-    : allTabs.filter(tab => !adminOnlyTabs.includes(tab.id));
+  // Admins veem todas as tabs, barbeiros só veem hoje e agenda
+  const tabs = role === "admin" ? adminTabs : barberTabs;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border/50 lg:hidden">
