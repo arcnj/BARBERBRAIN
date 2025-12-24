@@ -86,6 +86,7 @@ export default function CustomerDashboard() {
   const [activeTab, setActiveTab] = useState("agendar");
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [customerName, setCustomerName] = useState<string>("");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -186,11 +187,32 @@ export default function CustomerDashboard() {
     }
   };
 
+  const fetchCustomerName = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data?.full_name) {
+        // Get first name only
+        const firstName = data.full_name.split(" ")[0];
+        setCustomerName(firstName);
+      }
+    } catch (err) {
+      console.error("Error fetching customer name:", err);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchOrders();
       fetchPromotions();
       fetchProducts();
+      fetchCustomerName();
     }
   }, [user]);
 
@@ -301,7 +323,7 @@ export default function CustomerDashboard() {
           {/* Welcome Section */}
           <div className="mb-6">
             <h1 className="font-heading text-2xl font-bold text-foreground mb-2">
-              Olá! 👋
+              Olá{customerName ? `, ${customerName}` : ""}! 👋
             </h1>
             <p className="text-muted-foreground">
               Agende seu horário e acompanhe seus pedidos
