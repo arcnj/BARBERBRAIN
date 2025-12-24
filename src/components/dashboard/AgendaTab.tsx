@@ -220,16 +220,18 @@ export function AgendaTab() {
         .from("profiles")
         .select("user_id, full_name, phone")
         .eq("phone", phone)
-        .maybeSingle();
+        .limit(1);
 
       if (error) throw error;
 
-      if (data) {
-        setPhoneSearchResult({ found: true, customer: data });
+      const customer = data?.[0];
+
+      if (customer) {
+        setPhoneSearchResult({ found: true, customer });
         setNewAppointment(prev => ({
           ...prev,
-          customerId: data.user_id,
-          customerName: data.full_name,
+          customerId: customer.user_id,
+          customerName: customer.full_name,
         }));
       } else {
         setPhoneSearchResult({ found: false, customer: null });
