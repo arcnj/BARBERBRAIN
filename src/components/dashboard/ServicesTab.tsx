@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, Scissors, Loader2, Package, Gift } from "lucide-react";
 import { toast } from "sonner";
@@ -689,25 +689,29 @@ export function ServicesTab() {
                     <Label>Selecione os Serviços *</Label>
                     <Card className="max-h-48 overflow-y-auto">
                       <CardContent className="p-3 space-y-2">
-                        {services.filter(s => s.active).map((service) => (
-                          <div
-                            key={service.id}
-                            className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                            onClick={() => toggleServiceSelection(service.id)}
-                          >
-                            <div className="flex items-center gap-3">
-                              <Checkbox
-                                checked={comboFormData.selectedServices.includes(service.id)}
-                                onCheckedChange={() => toggleServiceSelection(service.id)}
-                              />
-                              <div>
-                                <p className="font-medium text-sm">{service.name}</p>
-                                <p className="text-xs text-muted-foreground">{service.category}</p>
+                        {services.filter(s => s.active).map((service) => {
+                          const isSelected = comboFormData.selectedServices.includes(service.id);
+                          return (
+                            <label
+                              key={service.id}
+                              className="flex items-center justify-between p-2 rounded-lg border hover:bg-muted/50 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleServiceSelection(service.id)}
+                                  className="h-4 w-4 rounded border-primary text-primary focus:ring-primary"
+                                />
+                                <div>
+                                  <p className="font-medium text-sm">{service.name}</p>
+                                  <p className="text-xs text-muted-foreground">{service.category}</p>
+                                </div>
                               </div>
-                            </div>
-                            <span className="text-sm font-medium">R$ {service.price.toFixed(2)}</span>
-                          </div>
-                        ))}
+                              <span className="text-sm font-medium">R$ {service.price.toFixed(2)}</span>
+                            </label>
+                          );
+                        })}
                       </CardContent>
                     </Card>
                     {comboFormData.selectedServices.length > 0 && (
