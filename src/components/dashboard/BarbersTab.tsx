@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil, KeyRound, Check, Copy } from "lucide-react";
+import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil, KeyRound, Check, Copy, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { Badge } from "@/components/ui/badge";
@@ -55,13 +55,16 @@ export function BarbersTab() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createLoginDialogOpen, setCreateLoginDialogOpen] = useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
   const [barberToDelete, setBarberToDelete] = useState<Barber | null>(null);
   const [barberToEdit, setBarberToEdit] = useState<Barber | null>(null);
   const [barberForLogin, setBarberForLogin] = useState<Barber | null>(null);
+  const [barberForPasswordReset, setBarberForPasswordReset] = useState<Barber | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [creatingLogin, setCreatingLogin] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const newBarberFileRef = useRef<HTMLInputElement>(null);
@@ -71,7 +74,8 @@ export function BarbersTab() {
   const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
   const [generatedCredentials, setGeneratedCredentials] = useState<{ email: string; password: string } | null>(null);
-
+  const [newPasswordForReset, setNewPasswordForReset] = useState("");
+  const [resetPasswordCredentials, setResetPasswordCredentials] = useState<{ password: string } | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -408,6 +412,62 @@ export function BarbersTab() {
     toast.success("Copiado!");
   };
 
+  const openResetPasswordDialog = (barber: Barber) => {
+    setBarberForPasswordReset(barber);
+    setNewPasswordForReset(generatePassword());
+    setResetPasswordCredentials(null);
+    setResetPasswordDialogOpen(true);
+  };
+
+  const handleResetPassword = async () => {
+    if (!barberForPasswordReset?.user_id || !newPasswordForReset) {
+      toast.error("Senha é obrigatória");
+      return;
+    }
+
+    setResettingPassword(true);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !sessionData.session) {
+        throw new Error("Sessão não encontrada. Faça login novamente.");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-barber-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${sessionData.session.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            userId: barberForPasswordReset.user_id,
+            newPassword: newPasswordForReset,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao redefinir senha");
+      }
+
+      setResetPasswordCredentials({
+        password: newPasswordForReset,
+      });
+      
+      toast.success("Senha redefinida com sucesso!");
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      toast.error(error.message || "Erro ao redefinir senha");
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -630,6 +690,17 @@ export function BarbersTab() {
                           className="text-muted-foreground hover:text-primary hover:bg-primary/10"
                         >
                           <KeyRound className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {role === "admin" && barber.user_id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openResetPasswordDialog(barber)}
+                          title="Redefinir senha"
+                          className="text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10"
+                        >
+                          <RefreshCw className="h-4 w-4" />
                         </Button>
                       )}
                       <Button
@@ -914,6 +985,111 @@ export function BarbersTab() {
                 >
                   {creatingLogin && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Criar Login
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Redefinir Senha</DialogTitle>
+          </DialogHeader>
+          
+          {resetPasswordCredentials ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <p className="text-sm text-green-400 font-medium mb-3">
+                  Senha redefinida com sucesso!
+                </p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Anote a nova senha e informe ao funcionário <strong>{barberForPasswordReset?.name}</strong>:
+                </p>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-background/50 p-2 rounded">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="font-mono text-sm">{barberForPasswordReset?.email}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => copyToClipboard(barberForPasswordReset?.email || "")}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between bg-background/50 p-2 rounded">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Nova Senha</p>
+                      <p className="font-mono text-sm">{resetPasswordCredentials.password}</p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => copyToClipboard(resetPasswordCredentials.password)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button onClick={() => {
+                  setResetPasswordDialogOpen(false);
+                  setBarberForPasswordReset(null);
+                  setResetPasswordCredentials(null);
+                }}>
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Você está prestes a redefinir a senha de <strong>{barberForPasswordReset?.name}</strong>.
+              </p>
+              
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova Senha</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="new-password"
+                    value={newPasswordForReset}
+                    onChange={(e) => setNewPasswordForReset(e.target.value)}
+                    placeholder="Nova senha"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setNewPasswordForReset(generatePassword())}
+                  >
+                    Gerar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Mínimo de 6 caracteres
+                </p>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setResetPasswordDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleResetPassword} 
+                  disabled={resettingPassword || newPasswordForReset.length < 6}
+                >
+                  {resettingPassword && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Redefinir Senha
                 </Button>
               </DialogFooter>
             </div>
