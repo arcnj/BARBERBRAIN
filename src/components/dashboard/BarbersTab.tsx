@@ -357,24 +357,35 @@ export function BarbersTab() {
 
     setCreatingLogin(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       
-      const response = await supabase.functions.invoke("create-barber-user", {
-        body: {
-          email: loginFormData.email,
-          password: loginFormData.password,
-          name: barberForLogin.name,
-          phone: barberForLogin.phone,
-          barberId: barberForLogin.id,
-        },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message);
+      if (sessionError || !sessionData.session) {
+        throw new Error("Sessão não encontrada. Faça login novamente.");
       }
 
-      if (response.data?.error) {
-        throw new Error(response.data.error);
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-barber-user`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${sessionData.session.access_token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            email: loginFormData.email,
+            password: loginFormData.password,
+            name: barberForLogin.name,
+            phone: barberForLogin.phone,
+            barberId: barberForLogin.id,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao criar login");
       }
 
       setGeneratedCredentials({
