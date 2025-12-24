@@ -300,6 +300,55 @@ export type Database = {
         }
         Relationships: []
       }
+      promotion_items: {
+        Row: {
+          created_at: string
+          discount_percentage: number
+          id: string
+          product_id: string | null
+          promotion_id: string
+          service_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          discount_percentage?: number
+          id?: string
+          product_id?: string | null
+          promotion_id: string
+          service_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          discount_percentage?: number
+          id?: string
+          product_id?: string | null
+          promotion_id?: string
+          service_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_items_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promotion_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       promotions: {
         Row: {
           active: boolean | null
