@@ -298,11 +298,12 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
       const [hours, minutes] = selectedTime.split(":").map(Number);
       const scheduledAt = setMinutes(setHours(selectedDate, hours), minutes);
 
-      // Create the order
+      // Create the order - set both barber_id and preferred_barber_id for immediate sync
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           customer_id: user.id,
+          barber_id: preferredBarber || null,
           preferred_barber_id: preferredBarber || null,
           total_price: totalPrice,
           notes: notes || null,
