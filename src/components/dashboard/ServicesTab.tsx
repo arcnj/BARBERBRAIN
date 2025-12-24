@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, Scissors, Loader2, Package, Gift } from "lucide-react";
@@ -47,6 +47,7 @@ const categories = [
 ];
 
 export function ServicesTab() {
+  const [activeTab, setActiveTab] = useState<"services" | "combos">("services");
   const [services, setServices] = useState<Service[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -411,19 +412,39 @@ export function ServicesTab() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="services" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="services" className="gap-2">
-            <Scissors className="h-4 w-4" />
-            Serviços
-          </TabsTrigger>
-          <TabsTrigger value="combos" className="gap-2">
-            <Package className="h-4 w-4" />
-            Combos
-          </TabsTrigger>
-        </TabsList>
+      {/* Custom Tab Navigation */}
+      <div className="inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground max-w-md">
+        <button
+          type="button"
+          onClick={() => setActiveTab("services")}
+          className={cn(
+            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all",
+            activeTab === "services"
+              ? "bg-background text-foreground shadow-sm"
+              : "hover:bg-background/50"
+          )}
+        >
+          <Scissors className="h-4 w-4" />
+          Serviços
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("combos")}
+          className={cn(
+            "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all",
+            activeTab === "combos"
+              ? "bg-background text-foreground shadow-sm"
+              : "hover:bg-background/50"
+          )}
+        >
+          <Package className="h-4 w-4" />
+          Combos
+        </button>
+      </div>
 
-        <TabsContent value="services" className="space-y-6 mt-6">
+      {/* Services Tab Content */}
+      {activeTab === "services" && (
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-display font-bold">Serviços</h2>
@@ -613,9 +634,12 @@ export function ServicesTab() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="combos" className="space-y-6 mt-6">
+      {/* Combos Tab Content */}
+      {activeTab === "combos" && (
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-display font-bold">Combos Promocionais</h2>
@@ -854,8 +878,8 @@ export function ServicesTab() {
               })}
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 }
