@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bell, Menu, Brain, LogOut, User, Lock, Users, Settings, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,7 +49,44 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
   
   const isAdmin = role === "admin";
 
-  // Fetch upcoming appointments for notifications
+  // Fetch user avatar
+  const { data: userAvatar } = useQuery({
+    queryKey: ["user-profile", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+
+      // For barbers, fetch from barbers table
+      if (role === "barber") {
+        const { data, error } = await supabase
+          .from("barbers")
+          .select("avatar_url, name")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        return data;
+      }
+
+      // For admins/others, fetch from profiles table
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("avatar_url, full_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? { avatar_url: data.avatar_url, name: data.full_name } : null;
+    },
+    enabled: !!user?.id,
+  });
+
+  const getInitials = () => {
+    const name = userAvatar?.name;
+    if (name) {
+      return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+    }
+    return user?.email?.charAt(0).toUpperCase() || "U";
+  };
   const { data: upcomingOrders } = useQuery({
     queryKey: ["upcoming-orders-notifications"],
     queryFn: async () => {
@@ -230,8 +268,13 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
             {/* Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="h-9 w-9 rounded-full bg-gradient-gold flex items-center justify-center text-primary-foreground font-display font-semibold text-sm ml-2 hover:opacity-90 transition-opacity cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-                  {user?.email?.charAt(0).toUpperCase() || "U"}
+                <button className="ml-2 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full">
+                  <Avatar className="h-9 w-9 cursor-pointer hover:opacity-90 transition-opacity">
+                    <AvatarImage src={userAvatar?.avatar_url || ""} />
+                    <AvatarFallback className="bg-gradient-gold text-primary-foreground font-display font-semibold text-sm">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
