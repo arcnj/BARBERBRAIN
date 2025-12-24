@@ -6,12 +6,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 
 type ClientStatus = "VIP" | "Em Risco" | "Perdido" | "Ativo" | "Novo";
 
 interface ClientWithMetrics {
   id: string;
   name: string;
+  phone: string | null;
   status: ClientStatus;
   lastVisit: string | null;
   lastVisitDate: Date | null;
@@ -92,6 +94,7 @@ export function ClientsTab() {
         return {
           id: profile.id,
           name: profile.full_name || "Sem nome",
+          phone: profile.phone || null,
           status,
           lastVisit: lastVisitDate 
             ? formatDistanceToNow(lastVisitDate, { addSuffix: true, locale: ptBR })
@@ -234,6 +237,7 @@ export function ClientsTab() {
                   <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Última Visita</th>
                   <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Gasto</th>
                   <th className="text-right py-3 px-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Visitas</th>
+                  <th className="text-center py-3 px-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">Contato</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -254,6 +258,9 @@ export function ClientsTab() {
                       R$ {client.spent.toLocaleString("pt-BR")}
                     </td>
                     <td className="py-3 px-2 text-right text-muted-foreground">{client.visits}</td>
+                    <td className="py-3 px-2 text-center">
+                      <WhatsAppButton phone={client.phone} name={client.name} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
