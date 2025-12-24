@@ -72,10 +72,16 @@ export function AgendaTab() {
   const [newAppointment, setNewAppointment] = useState({
     customerName: "",
     customerPhone: "",
+    customerId: "" as string | null,
     serviceId: "",
     scheduledAt: new Date(),
     notes: "",
   });
+  const [phoneSearchResult, setPhoneSearchResult] = useState<{
+    found: boolean;
+    customer: { user_id: string; full_name: string; phone: string } | null;
+  } | null>(null);
+  const [isSearchingPhone, setIsSearchingPhone] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -200,22 +206,42 @@ export function AgendaTab() {
     enabled: isDialogOpen, // Only fetch when dialog is open
   });
 
-  // Fetch profiles for customer search (only when dialog opens)
-  const { data: customers } = useQuery({
-    queryKey: ["customers-list"],
-    queryFn: async () => {
+  // Search customer by phone
+  const searchCustomerByPhone = async (phone: string) => {
+    if (phone.length < 8) {
+      setPhoneSearchResult(null);
+      setNewAppointment(prev => ({ ...prev, customerId: null, customerName: "" }));
+      return;
+    }
+
+    setIsSearchingPhone(true);
+    try {
       const { data, error } = await supabase
         .from("profiles")
         .select("user_id, full_name, phone")
-        .order("full_name")
-        .limit(100);
+        .eq("phone", phone)
+        .maybeSingle();
 
       if (error) throw error;
-      return data;
-    },
-    staleTime: 60000, // Cache for 1 minute
-    enabled: isDialogOpen, // Only fetch when dialog is open
-  });
+
+      if (data) {
+        setPhoneSearchResult({ found: true, customer: data });
+        setNewAppointment(prev => ({
+          ...prev,
+          customerId: data.user_id,
+          customerName: data.full_name,
+        }));
+      } else {
+        setPhoneSearchResult({ found: false, customer: null });
+        setNewAppointment(prev => ({ ...prev, customerId: null }));
+      }
+    } catch (error) {
+      console.error("Error searching customer:", error);
+      setPhoneSearchResult(null);
+    } finally {
+      setIsSearchingPhone(false);
+    }
+  };
 
   // Update order status mutation
   const updateStatusMutation = useMutation({
@@ -239,21 +265,46 @@ export function AgendaTab() {
   // Create appointment mutation (for walk-in clients)
   const createAppointmentMutation = useMutation({
     mutationFn: async () => {
-      // First, find or create the customer
       let customerId: string;
       
-      const existingCustomer = customers?.find(
-        c => c.phone === newAppointment.customerPhone || 
-             c.full_name.toLowerCase() === newAppointment.customerName.toLowerCase()
-      );
-
-      if (existingCustomer) {
-        customerId = existingCustomer.user_id;
+      // If customer was found by phone search
+      if (newAppointment.customerId) {
+        customerId = newAppointment.customerId;
       } else {
-        // For walk-in clients without an account, we need to create a temporary profile
-        // This requires admin privileges - for now, use an existing customer
-        toast.error("Cliente não encontrado. O cliente precisa ter uma conta.");
-        throw new Error("Customer not found");
+        // Create new customer profile
+        // First, we need to create a user in auth - but since we can't do that directly,
+        // we'll create a profile with a generated user_id for walk-in clients
+        const walkInUserId = crypto.randomUUID();
+        
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: walkInUserId,
+            full_name: newAppointment.customerName,
+            phone: newAppointment.customerPhone,
+          });
+
+        if (profileError) {
+          console.error("Error creating profile:", profileError);
+          toast.error("Erro ao criar perfil do cliente");
+          throw profileError;
+        }
+
+        // Also create a customer role for this user
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: walkInUserId,
+            role: "customer" as const,
+          });
+
+        if (roleError) {
+          console.error("Error creating role:", roleError);
+          // Continue anyway, role is not critical for the order
+        }
+
+        customerId = walkInUserId;
+        toast.success(`Novo cliente "${newAppointment.customerName}" cadastrado!`);
       }
 
       const service = services?.find(s => s.id === newAppointment.serviceId);
@@ -268,6 +319,7 @@ export function AgendaTab() {
           status: "confirmed" as OrderStatus,
           notes: newAppointment.notes || null,
           total_price: service.price,
+          barber_id: barberId || null,
         })
         .select()
         .single();
@@ -294,10 +346,12 @@ export function AgendaTab() {
       setNewAppointment({
         customerName: "",
         customerPhone: "",
+        customerId: null,
         serviceId: "",
         scheduledAt: new Date(),
         notes: "",
       });
+      setPhoneSearchResult(null);
     },
     onError: (error) => {
       console.error(error);
@@ -419,29 +473,62 @@ export function AgendaTab() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Cliente</Label>
-                  <Select
-                    value={newAppointment.customerName}
-                    onValueChange={(value) => {
-                      const customer = customers?.find(c => c.user_id === value);
-                      setNewAppointment({
-                        ...newAppointment,
-                        customerName: customer?.full_name || "",
-                        customerPhone: customer?.phone || "",
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers?.map((customer) => (
-                        <SelectItem key={customer.user_id} value={customer.user_id}>
-                          {customer.full_name} {customer.phone && `- ${customer.phone}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Telefone do Cliente</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="(11) 99999-9999"
+                      className="pl-10"
+                      value={newAppointment.customerPhone}
+                      onChange={(e) => {
+                        const phone = e.target.value;
+                        setNewAppointment({ ...newAppointment, customerPhone: phone });
+                        searchCustomerByPhone(phone);
+                      }}
+                    />
+                    {isSearchingPhone && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {phoneSearchResult && (
+                    <div className={cn(
+                      "text-sm px-3 py-2 rounded-md",
+                      phoneSearchResult.found 
+                        ? "bg-green-500/10 text-green-400 border border-green-500/30" 
+                        : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
+                    )}>
+                      {phoneSearchResult.found ? (
+                        <span className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          Cliente encontrado: {phoneSearchResult.customer?.full_name}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4" />
+                          Cliente não encontrado. Será criado um novo cadastro.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Nome do Cliente</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Nome completo"
+                      className="pl-10"
+                      value={newAppointment.customerName}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, customerName: e.target.value })}
+                      disabled={phoneSearchResult?.found}
+                    />
+                  </div>
+                  {phoneSearchResult?.found && (
+                    <p className="text-xs text-muted-foreground">
+                      Nome preenchido automaticamente do cadastro
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -524,9 +611,21 @@ export function AgendaTab() {
                 <Button
                   className="w-full"
                   onClick={() => createAppointmentMutation.mutate()}
-                  disabled={!newAppointment.customerName || !newAppointment.serviceId}
+                  disabled={
+                    !newAppointment.customerName || 
+                    !newAppointment.customerPhone || 
+                    !newAppointment.serviceId ||
+                    createAppointmentMutation.isPending
+                  }
                 >
-                  Confirmar Encaixe
+                  {createAppointmentMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    "Confirmar Encaixe"
+                  )}
                 </Button>
               </div>
             </DialogContent>
