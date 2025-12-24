@@ -9,16 +9,37 @@ import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "d
 import { ptBR } from "date-fns/locale";
 
 export function TodayTab() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const today = new Date();
   const startOfToday = startOfDay(today).toISOString();
   const endOfToday = endOfDay(today).toISOString();
 
-  // Fetch today's orders
-  const { data: todayOrders, isLoading: loadingOrders } = useQuery({
-    queryKey: ["today-orders", startOfToday, endOfToday],
+  // Fetch barber ID for current user (if they are a barber)
+  const { data: currentBarber, isLoading: loadingBarber } = useQuery({
+    queryKey: ["current-barber", user?.id],
     queryFn: async () => {
+      if (!user?.id) return null;
       const { data, error } = await supabase
+        .from("barbers")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id && role === "barber",
+  });
+
+  const isAdmin = role === "admin";
+  const barberId = currentBarber?.id;
+  const barberName = currentBarber?.name;
+
+  // Fetch today's orders - filtered by barber if not admin
+  const { data: todayOrders, isLoading: loadingOrders } = useQuery({
+    queryKey: ["today-orders", startOfToday, endOfToday, barberId, isAdmin],
+    queryFn: async () => {
+      let query = supabase
         .from("orders")
         .select(`
           id,
@@ -35,30 +56,45 @@ export function TodayTab() {
         .lte("scheduled_at", endOfToday)
         .order("scheduled_at", { ascending: true });
 
+      // If barber (not admin), filter by their barber_id
+      if (!isAdmin && barberId) {
+        query = query.eq("barber_id", barberId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
       return data;
     },
     staleTime: 30000,
+    enabled: isAdmin || !!barberId,
   });
 
-  // Fetch last week's orders for comparison
+  // Fetch last week's orders for comparison - also filtered by barber
   const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 1 }).toISOString();
   const lastWeekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 1 }).toISOString();
   
   const { data: lastWeekOrders } = useQuery({
-    queryKey: ["last-week-orders", lastWeekStart, lastWeekEnd],
+    queryKey: ["last-week-orders", lastWeekStart, lastWeekEnd, barberId, isAdmin],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .select("id, total_price, status")
         .gte("scheduled_at", lastWeekStart)
         .lte("scheduled_at", lastWeekEnd)
         .neq("status", "cancelled");
 
+      if (!isAdmin && barberId) {
+        query = query.eq("barber_id", barberId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
       return data;
     },
     staleTime: 60000,
+    enabled: isAdmin || !!barberId,
   });
 
   // Calculate stats
@@ -112,7 +148,7 @@ export function TodayTab() {
   if (hour >= 12 && hour < 18) greeting = "Boa tarde";
   if (hour >= 18) greeting = "Boa noite";
 
-  // Get user name from profile
+  // Get user name from profile or barber name
   const { data: profile } = useQuery({
     queryKey: ["user-profile", user?.id],
     queryFn: async () => {
@@ -129,12 +165,30 @@ export function TodayTab() {
     enabled: !!user?.id,
   });
 
-  const userName = profile?.full_name?.split(" ")[0] || "usuário";
+  const userName = barberName || profile?.full_name?.split(" ")[0] || "usuário";
 
-  if (loadingOrders) {
+  if (loadingOrders || loadingBarber) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // If barber but no barber record linked, show message
+  if (role === "barber" && !barberId && !isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Clock className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <h3 className="font-display font-semibold text-foreground">Conta não vinculada</h3>
+          <p className="text-muted-foreground">
+            Seu usuário ainda não está vinculado a um perfil de barbeiro.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Peça ao administrador para criar seu login na aba Barbeiros.
+          </p>
+        </div>
       </div>
     );
   }
@@ -144,7 +198,12 @@ export function TodayTab() {
       {/* Greeting */}
       <div className="animate-fade-in">
         <h2 className="font-display text-2xl font-bold text-foreground">{greeting}, {userName}! ☀️</h2>
-        <p className="text-muted-foreground mt-1">Aqui está o resumo do seu dia</p>
+        <p className="text-muted-foreground mt-1">
+          {isAdmin ? "Resumo geral da barbearia" : "Resumo do seu dia"}
+        </p>
+        {!isAdmin && barberName && (
+          <p className="text-sm text-primary mt-1">Mostrando apenas seus atendimentos</p>
+        )}
       </div>
       
       {/* Alerts */}
@@ -152,15 +211,18 @@ export function TodayTab() {
         <AlertCard
           icon={Clock}
           variant="info"
-          title="Sem agendamentos para hoje"
-          description="Aproveite para atualizar promoções ou entrar em contato com clientes."
+          title={isAdmin ? "Sem agendamentos para hoje" : "Você não tem agendamentos para hoje"}
+          description={isAdmin 
+            ? "Aproveite para atualizar promoções ou entrar em contato com clientes."
+            : "Aproveite para descansar ou ajudar seus colegas."
+          }
         />
       )}
       
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Faturamento Hoje"
+          title={isAdmin ? "Faturamento Total" : "Seu Faturamento"}
           value={`R$ ${todayRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`}
           icon={DollarSign}
           subtitle="Atendimentos concluídos"
@@ -168,7 +230,7 @@ export function TodayTab() {
         />
         
         <StatCard
-          title="Clientes Atendidos"
+          title={isAdmin ? "Clientes Atendidos" : "Seus Clientes"}
           value={String(clientsServed)}
           icon={Users}
           subtitle={ticketMedio > 0 ? `Ticket médio: R$ ${ticketMedio.toFixed(2)}` : "Aguardando atendimentos"}
@@ -176,7 +238,7 @@ export function TodayTab() {
         />
         
         <StatCard
-          title="Taxa de Ocupação"
+          title={isAdmin ? "Taxa de Ocupação" : "Sua Ocupação"}
           value={`${occupationRate}%`}
           icon={TrendingUp}
           subtitle={`${occupiedSlots} de ${totalSlots} horários`}
@@ -196,7 +258,9 @@ export function TodayTab() {
       <div className="glass rounded-xl p-5 animate-slide-up [animation-delay:500ms]">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-display font-semibold text-foreground">Ocupação por Horário</h3>
+            <h3 className="font-display font-semibold text-foreground">
+              {isAdmin ? "Ocupação Geral" : "Sua Ocupação por Horário"}
+            </h3>
             <p className="text-sm text-muted-foreground">Visualize os horários livres e ocupados</p>
           </div>
           <div className="flex items-center gap-4 text-xs">
@@ -237,14 +301,19 @@ export function TodayTab() {
       <div className="glass rounded-xl p-5 animate-slide-up [animation-delay:600ms]">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="font-display font-semibold text-foreground">Próximos Atendimentos</h3>
+            <h3 className="font-display font-semibold text-foreground">
+              {isAdmin ? "Próximos Atendimentos" : "Seus Próximos Atendimentos"}
+            </h3>
             <p className="text-sm text-muted-foreground">Agenda de hoje</p>
           </div>
         </div>
         
         {upcomingAppointments.length === 0 ? (
           <p className="text-muted-foreground text-center py-4">
-            Nenhum atendimento agendado para o restante do dia
+            {isAdmin 
+              ? "Nenhum atendimento agendado para o restante do dia"
+              : "Você não tem mais atendimentos para hoje"
+            }
           </p>
         ) : (
           <div className="space-y-3">
@@ -268,9 +337,13 @@ export function TodayTab() {
                   </p>
                 </div>
                 
-                 <div className="text-right">
-                   <p className="text-sm text-muted-foreground">{apt.barber?.name || apt.preferred_barber?.name || "Sem barbeiro"}</p>
-                 </div>
+                {isAdmin && (
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">
+                      {apt.barber?.name || apt.preferred_barber?.name || "Sem barbeiro"}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
