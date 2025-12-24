@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; icon: ty
 };
 
 export function AgendaTab() {
+  const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newAppointment, setNewAppointment] = useState({
@@ -74,7 +76,28 @@ export function AgendaTab() {
 
   const queryClient = useQueryClient();
 
-  // Fetch orders for selected date
+  const isAdmin = role === "admin";
+
+  // Fetch barber ID for current user (if they are a barber)
+  const { data: currentBarber, isLoading: loadingBarber } = useQuery({
+    queryKey: ["current-barber", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from("barbers")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id && role === "barber",
+  });
+
+  const barberId = currentBarber?.id;
+
+  // Fetch orders for selected date - filtered by barber if not admin
   const {
     data: orders,
     isLoading,
@@ -82,12 +105,12 @@ export function AgendaTab() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["agenda-orders", format(selectedDate, "yyyy-MM-dd")],
+    queryKey: ["agenda-orders", format(selectedDate, "yyyy-MM-dd"), barberId, isAdmin],
     queryFn: async () => {
       const startDate = startOfDay(selectedDate).toISOString();
       const endDate = endOfDay(selectedDate).toISOString();
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .select(`
           id,
@@ -126,12 +149,20 @@ export function AgendaTab() {
         .neq("status", "cancelled")
         .order("scheduled_at", { ascending: true });
 
+      // If barber (not admin), filter by their barber_id
+      if (!isAdmin && barberId) {
+        query = query.eq("barber_id", barberId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
       return data as unknown as Order[];
     },
     staleTime: 10_000,
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
+    enabled: isAdmin || !!barberId,
   });
 
   // Fetch services for the new appointment form (only when dialog opens)
@@ -268,6 +299,32 @@ export function AgendaTab() {
     { label: format(addDays(new Date(), 3), "EEE", { locale: ptBR }), date: addDays(new Date(), 3) },
   ];
 
+  // If barber but no barber record linked, show message
+  if (role === "barber" && !barberId && !loadingBarber && !isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Clock className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <h3 className="font-display font-semibold text-foreground">Conta não vinculada</h3>
+          <p className="text-muted-foreground">
+            Seu usuário ainda não está vinculado a um perfil de barbeiro.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Peça ao administrador para criar seu login na aba Barbeiros.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadingBarber) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header with date selection */}
@@ -276,6 +333,9 @@ export function AgendaTab() {
           <h2 className="text-2xl font-bold capitalize">{getDateLabel(selectedDate)}</h2>
           <p className="text-muted-foreground">
             {orders?.length || 0} agendamento{orders?.length !== 1 ? "s" : ""}
+            {!isAdmin && currentBarber && (
+              <span className="text-primary ml-2">• Sua agenda</span>
+            )}
           </p>
         </div>
 
