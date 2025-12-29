@@ -289,20 +289,23 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Load selected products from URL params
+  // Load selected products from URL params and clean URL
   useEffect(() => {
     const selectedParam = searchParams.get("selected");
     if (selectedParam) {
       try {
         const parsed = JSON.parse(decodeURIComponent(selectedParam));
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           setSelectedProducts(parsed);
+          setActiveTab("agendar");
         }
       } catch (e) {
         console.error("Error parsing selected products:", e);
       }
+      // Clean URL params after loading
+      navigate("/cliente", { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, navigate]);
 
   const fetchCustomerName = async () => {
     if (!user) return;
