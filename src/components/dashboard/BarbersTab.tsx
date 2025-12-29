@@ -51,6 +51,7 @@ export function BarbersTab() {
   const { user, role } = useAuth();
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
+  const [avatarVersion, setAvatarVersion] = useState(Date.now());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -170,7 +171,8 @@ export function BarbersTab() {
     setUploadingAvatar(barberId);
     try {
       const fileExt = file.name.split(".").pop();
-      const fileName = `${barberId}-${Date.now()}.${fileExt}`;
+      const timestamp = Date.now();
+      const fileName = `${barberId}-${timestamp}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("barbers")
@@ -182,15 +184,22 @@ export function BarbersTab() {
         .from("barbers")
         .getPublicUrl(fileName);
 
+      const newAvatarUrl = publicUrl.publicUrl;
+
       const { error: updateError } = await supabase
         .from("barbers")
-        .update({ avatar_url: publicUrl.publicUrl })
+        .update({ avatar_url: newAvatarUrl })
         .eq("id", barberId);
 
       if (updateError) throw updateError;
 
+      // Update local state immediately for instant feedback
+      setBarbers(prev => prev.map(b => 
+        b.id === barberId ? { ...b, avatar_url: newAvatarUrl } : b
+      ));
+      setAvatarVersion(Date.now());
+
       toast.success("Foto atualizada com sucesso!");
-      fetchBarbers();
     } catch (error) {
       console.error("Error uploading avatar:", error);
       toast.error("Erro ao fazer upload da foto");
@@ -623,7 +632,11 @@ export function BarbersTab() {
                         input.click();
                       }}>
                         {barber.avatar_url ? (
-                          <AvatarImage src={barber.avatar_url} alt={barber.name} className="object-cover" />
+                          <AvatarImage 
+                            src={`${barber.avatar_url}?v=${avatarVersion}`} 
+                            alt={barber.name} 
+                            className="object-cover" 
+                          />
                         ) : (
                           <AvatarFallback className="bg-muted text-muted-foreground">
                             {barber.name.charAt(0).toUpperCase()}
