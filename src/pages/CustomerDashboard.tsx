@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import useEmblaCarousel from "embla-carousel-react";
+import Autoplay from "embla-carousel-autoplay";
 
 interface Order {
   id: string;
@@ -75,6 +77,103 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   completed: { label: "Concluído", variant: "outline" },
   cancelled: { label: "Cancelado", variant: "destructive" },
 };
+
+// Promotion Banner Carousel Component
+function PromotionBannerCarousel({ promotions }: { promotions: Promotion[] }) {
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
+    Autoplay({ delay: 5000, stopOnInteraction: false })
+  ]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setSelectedIndex(emblaApi.selectedScrollSnap());
+    setCanScrollPrev(emblaApi.canScrollPrev());
+    setCanScrollNext(emblaApi.canScrollNext());
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on("select", onSelect);
+    emblaApi.on("reInit", onSelect);
+    return () => {
+      emblaApi.off("select", onSelect);
+      emblaApi.off("reInit", onSelect);
+    };
+  }, [emblaApi, onSelect]);
+
+  const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
+
+  if (promotions.length === 0) return null;
+
+  return (
+    <div className="mb-4 relative">
+      <div ref={emblaRef} className="overflow-hidden rounded-xl">
+        <div className="flex">
+          {promotions.map((promo) => (
+            <div
+              key={`banner-${promo.id}`}
+              className="relative flex-[0_0_100%] min-w-0"
+            >
+              <img
+                src={promo.image_url!}
+                alt={promo.title}
+                className="w-full h-auto object-cover max-h-48 md:max-h-64"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                <h3 className="font-semibold text-white text-lg">{promo.title}</h3>
+                {promo.end_date && (
+                  <p className="text-xs text-white/80">
+                    Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Navigation Arrows */}
+      {promotions.length > 1 && (
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white h-8 w-8 rounded-full"
+            onClick={scrollPrev}
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white h-8 w-8 rounded-full"
+            onClick={scrollNext}
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+
+          {/* Dots Indicator */}
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {promotions.map((_, index) => (
+              <button
+                key={index}
+                className={`w-2 h-2 rounded-full transition-colors ${
+                  index === selectedIndex ? "bg-white" : "bg-white/50"
+                }`}
+                onClick={() => emblaApi?.scrollTo(index)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
@@ -335,30 +434,7 @@ export default function CustomerDashboard() {
           {promotions.length > 0 && (
             <div className="mb-6">
               {/* Banner Carousel for promotions with images */}
-              {promotions.some(p => p.image_url) && (
-                <div className="mb-4 space-y-3">
-                  {promotions.filter(p => p.image_url).map((promo) => (
-                    <div 
-                      key={`banner-${promo.id}`} 
-                      className="relative w-full rounded-xl overflow-hidden"
-                    >
-                      <img
-                        src={promo.image_url!}
-                        alt={promo.title}
-                        className="w-full h-auto object-cover max-h-48 md:max-h-64"
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-                        <h3 className="font-semibold text-white text-lg">{promo.title}</h3>
-                        {promo.end_date && (
-                          <p className="text-xs text-white/80">
-                            Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <PromotionBannerCarousel promotions={promotions.filter(p => p.image_url)} />
 
               {/* Text-only promotions */}
               {promotions.filter(p => !p.image_url).length > 0 && (
