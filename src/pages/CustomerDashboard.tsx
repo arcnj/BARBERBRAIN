@@ -514,20 +514,18 @@ export default function CustomerDashboard() {
                       {selectedProducts.length} selecionado(s)
                     </Badge>
                   )}
-                  {products.length > 6 && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="text-primary gap-1"
-                      onClick={() => {
-                        const selectedParam = encodeURIComponent(JSON.stringify(selectedProducts));
-                        navigate(`/cliente/produtos?selected=${selectedParam}`);
-                      }}
-                    >
-                      Ver mais
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-primary gap-1"
+                    onClick={() => {
+                      const selectedParam = encodeURIComponent(JSON.stringify(selectedProducts));
+                      navigate(`/cliente/produtos?selected=${selectedParam}`);
+                    }}
+                  >
+                    Ver mais produtos
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
