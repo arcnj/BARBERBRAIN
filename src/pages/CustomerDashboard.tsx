@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -61,6 +61,7 @@ interface Product {
   description: string | null;
   price: number;
   image_url: string | null;
+  category: string | null;
   total_sold?: number;
 }
 
@@ -177,6 +178,7 @@ function PromotionBannerCarousel({ promotions }: { promotions: Promotion[] }) {
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, role, loading, signOut } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -249,7 +251,7 @@ export default function CustomerDashboard() {
       // Fetch products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, name, description, price, image_url")
+        .select("id, name, description, price, image_url, category")
         .eq("active", true)
         .order("name");
 
@@ -286,6 +288,21 @@ export default function CustomerDashboard() {
       console.error("Error fetching products:", err);
     }
   };
+
+  // Load selected products from URL params
+  useEffect(() => {
+    const selectedParam = searchParams.get("selected");
+    if (selectedParam) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(selectedParam));
+        if (Array.isArray(parsed)) {
+          setSelectedProducts(parsed);
+        }
+      } catch (e) {
+        console.error("Error parsing selected products:", e);
+      }
+    }
+  }, [searchParams]);
 
   const fetchCustomerName = async () => {
     if (!user) return;
@@ -491,14 +508,30 @@ export default function CustomerDashboard() {
                   <Package className="h-5 w-5 text-primary" />
                   Produtos
                 </h2>
-                {selectedProducts.length > 0 && (
-                  <Badge variant="default" className="gap-1">
-                    {selectedProducts.length} selecionado(s)
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {selectedProducts.length > 0 && (
+                    <Badge variant="default" className="gap-1">
+                      {selectedProducts.length} selecionado(s)
+                    </Badge>
+                  )}
+                  {products.length > 6 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-primary gap-1"
+                      onClick={() => {
+                        const selectedParam = encodeURIComponent(JSON.stringify(selectedProducts));
+                        navigate(`/cliente/produtos?selected=${selectedParam}`);
+                      }}
+                    >
+                      Ver mais
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {products.map((product, index) => {
+                {products.slice(0, 6).map((product, index) => {
                   const selected = isProductSelected(product.id);
                   const isBestSeller = index === 0 && (product.total_sold || 0) > 0;
                   return (
