@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Megaphone, Loader2, Calendar, Percent, Package, Scissors, User } from "lucide-react";
+import { Plus, Pencil, Trash2, Megaphone, Loader2, Calendar, Percent, Package, Scissors, User, ImageIcon, X, Upload } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -57,6 +57,7 @@ interface Promotion {
   active: boolean;
   created_at: string;
   barber_id: string | null;
+  image_url: string | null;
   items?: PromotionItem[];
 }
 
@@ -77,6 +78,10 @@ export function PromotionsTab() {
     barber_id: ""
   });
   const [selectedItems, setSelectedItems] = useState<PromotionItem[]>([]);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchData();
@@ -120,6 +125,58 @@ export function PromotionsTab() {
     }
   };
 
+  const uploadBanner = async (promotionId: string): Promise<string | null> => {
+    if (!bannerFile) return bannerPreview; // Return existing URL if no new file
+
+    setUploadingBanner(true);
+    try {
+      const fileExt = bannerFile.name.split('.').pop();
+      const fileName = `${promotionId}-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('promotion-banners')
+        .upload(fileName, bannerFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('promotion-banners')
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error("Error uploading banner:", error);
+      toast.error("Erro ao fazer upload do banner");
+      return null;
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
+  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Imagem muito grande. Máximo 5MB");
+        return;
+      }
+      setBannerFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBannerPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeBanner = () => {
+    setBannerFile(null);
+    setBannerPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -134,27 +191,35 @@ export function PromotionsTab() {
     }
 
     try {
-      const promotionData = {
-        title: formData.title.trim(),
-        description: formData.description.trim() || null,
-        discount_percentage: null,
-        discount_value: null,
-        start_date: formData.start_date || new Date().toISOString(),
-        end_date: formData.end_date || null,
-        active: formData.active,
-        barber_id: formData.barber_id || null
-      };
-
       let promotionId: string;
+      let imageUrl: string | null = bannerPreview;
 
       if (editingPromotion) {
+        promotionId = editingPromotion.id;
+        
+        // Upload banner if new file selected
+        if (bannerFile) {
+          imageUrl = await uploadBanner(promotionId);
+        }
+
+        const promotionData = {
+          title: formData.title.trim(),
+          description: formData.description.trim() || null,
+          discount_percentage: null,
+          discount_value: null,
+          start_date: formData.start_date || new Date().toISOString(),
+          end_date: formData.end_date || null,
+          active: formData.active,
+          barber_id: formData.barber_id || null,
+          image_url: imageUrl
+        };
+
         const { error } = await supabase
           .from("promotions")
           .update(promotionData)
           .eq("id", editingPromotion.id);
 
         if (error) throw error;
-        promotionId = editingPromotion.id;
 
         // Delete existing items
         await supabase
@@ -162,14 +227,35 @@ export function PromotionsTab() {
           .delete()
           .eq("promotion_id", editingPromotion.id);
       } else {
+        // Create promotion first to get ID
         const { data, error } = await supabase
           .from("promotions")
-          .insert(promotionData)
+          .insert({
+            title: formData.title.trim(),
+            description: formData.description.trim() || null,
+            discount_percentage: null,
+            discount_value: null,
+            start_date: formData.start_date || new Date().toISOString(),
+            end_date: formData.end_date || null,
+            active: formData.active,
+            barber_id: formData.barber_id || null
+          })
           .select()
           .single();
 
         if (error) throw error;
         promotionId = data.id;
+
+        // Upload banner with promotion ID
+        if (bannerFile) {
+          imageUrl = await uploadBanner(promotionId);
+          
+          // Update promotion with image URL
+          await supabase
+            .from("promotions")
+            .update({ image_url: imageUrl })
+            .eq("id", promotionId);
+        }
       }
 
       // Insert new items
@@ -206,6 +292,10 @@ export function PromotionsTab() {
       active: promotion.active,
       barber_id: promotion.barber_id || ""
     });
+
+    // Set existing banner
+    setBannerPreview(promotion.image_url || null);
+    setBannerFile(null);
 
     // Load existing items with names
     const items: PromotionItem[] = (promotion.items || []).map(item => {
@@ -276,6 +366,11 @@ export function PromotionsTab() {
       barber_id: ""
     });
     setSelectedItems([]);
+    setBannerFile(null);
+    setBannerPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const toggleItemSelection = (type: 'product' | 'service', id: string, name: string, price: number) => {
@@ -355,6 +450,52 @@ export function PromotionsTab() {
             </DialogHeader>
             
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Banner Upload */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Banner da Promoção (1920x600)
+                </Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBannerChange}
+                  className="hidden"
+                />
+                {bannerPreview ? (
+                  <div className="relative">
+                    <img
+                      src={bannerPreview}
+                      alt="Banner preview"
+                      className="w-full h-32 object-cover rounded-lg border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2 h-8 w-8"
+                      onClick={removeBanner}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-muted/50 transition-colors"
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground text-center">
+                      Clique para fazer upload do banner
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Tamanho recomendado: 1920x600 (máx. 5MB)
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="title">Título *</Label>
                 <Input
@@ -550,8 +691,15 @@ export function PromotionsTab() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
-                  {editingPromotion ? "Salvar" : "Criar"}
+                <Button type="submit" className="flex-1" disabled={uploadingBanner}>
+                  {uploadingBanner ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    editingPromotion ? "Salvar" : "Criar"
+                  )}
                 </Button>
               </div>
             </form>
@@ -577,6 +725,17 @@ export function PromotionsTab() {
                 key={promotion.id} 
                 className={`relative overflow-hidden ${!promotion.active || expired ? "opacity-60" : ""}`}
               >
+                {/* Banner Image */}
+                {promotion.image_url && (
+                  <div className="w-full h-24 overflow-hidden">
+                    <img
+                      src={promotion.image_url}
+                      alt={promotion.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                
                 {promotion.active && !expired && (
                   <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-medium rounded-bl-lg">
                     Ativa
