@@ -50,6 +50,7 @@ interface Promotion {
   discount_percentage: number | null;
   discount_value: number | null;
   end_date: string | null;
+  image_url: string | null;
 }
 
 interface Product {
@@ -134,7 +135,7 @@ export default function CustomerDashboard() {
     try {
       const { data, error } = await supabase
         .from("promotions")
-        .select("id, title, description, discount_percentage, discount_value, end_date")
+        .select("id, title, description, discount_percentage, discount_value, end_date, image_url")
         .eq("active", true);
 
       if (error) throw error;
@@ -333,45 +334,76 @@ export default function CustomerDashboard() {
           {/* Promotions Section */}
           {promotions.length > 0 && (
             <div className="mb-6">
-              <h2 className="font-heading text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Megaphone className="h-5 w-5 text-primary" />
-                Promoções
-              </h2>
-              <div className="space-y-3">
-                {promotions.map((promo) => (
-                  <Card key={promo.id} className="glass border-primary/30 bg-primary/5">
-                    <CardContent className="py-4">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-foreground">{promo.title}</h3>
-                          {promo.description && (
-                            <p className="text-sm text-muted-foreground mt-1">{promo.description}</p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          {promo.discount_percentage && (
-                            <Badge variant="default" className="gap-1">
-                              <Percent className="h-3 w-3" />
-                              {promo.discount_percentage}% OFF
-                            </Badge>
-                          )}
-                          {promo.discount_value && (
-                            <Badge variant="default" className="gap-1">
-                              <BadgeDollarSign className="h-3 w-3" />
-                              R$ {promo.discount_value.toFixed(2)} OFF
-                            </Badge>
-                          )}
-                        </div>
+              {/* Banner Carousel for promotions with images */}
+              {promotions.some(p => p.image_url) && (
+                <div className="mb-4 space-y-3">
+                  {promotions.filter(p => p.image_url).map((promo) => (
+                    <div 
+                      key={`banner-${promo.id}`} 
+                      className="relative w-full rounded-xl overflow-hidden"
+                    >
+                      <img
+                        src={promo.image_url!}
+                        alt={promo.title}
+                        className="w-full h-auto object-cover max-h-48 md:max-h-64"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                        <h3 className="font-semibold text-white text-lg">{promo.title}</h3>
+                        {promo.end_date && (
+                          <p className="text-xs text-white/80">
+                            Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                          </p>
+                        )}
                       </div>
-                      {promo.end_date && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Text-only promotions */}
+              {promotions.filter(p => !p.image_url).length > 0 && (
+                <>
+                  <h2 className="font-heading text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                    <Megaphone className="h-5 w-5 text-primary" />
+                    Promoções
+                  </h2>
+                  <div className="space-y-3">
+                    {promotions.filter(p => !p.image_url).map((promo) => (
+                      <Card key={promo.id} className="glass border-primary/30 bg-primary/5">
+                        <CardContent className="py-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h3 className="font-semibold text-foreground">{promo.title}</h3>
+                              {promo.description && (
+                                <p className="text-sm text-muted-foreground mt-1">{promo.description}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              {promo.discount_percentage && (
+                                <Badge variant="default" className="gap-1">
+                                  <Percent className="h-3 w-3" />
+                                  {promo.discount_percentage}% OFF
+                                </Badge>
+                              )}
+                              {promo.discount_value && (
+                                <Badge variant="default" className="gap-1">
+                                  <BadgeDollarSign className="h-3 w-3" />
+                                  R$ {promo.discount_value.toFixed(2)} OFF
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {promo.end_date && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Válido até {format(new Date(promo.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
