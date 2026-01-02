@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight, Gift, Cake } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -43,6 +43,15 @@ interface Order {
       name: string;
     };
   }[];
+}
+
+interface BirthdayCoupon {
+  id: string;
+  discount_percentage: number | null;
+  discount_value: number | null;
+  valid_from: string;
+  valid_until: string;
+  used: boolean;
 }
 
 interface Promotion {
@@ -189,6 +198,7 @@ export default function CustomerDashboard() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [customerName, setCustomerName] = useState<string>("");
+  const [birthdayCoupon, setBirthdayCoupon] = useState<BirthdayCoupon | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -327,12 +337,43 @@ export default function CustomerDashboard() {
     }
   };
 
+  const fetchBirthdayCoupon = async () => {
+    if (!user) return;
+    try {
+      // First get the profile id
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (profileError || !profile) return;
+
+      // Check for valid birthday coupon
+      const today = new Date().toISOString().split("T")[0];
+      const { data: coupon, error: couponError } = await supabase
+        .from("birthday_coupons")
+        .select("id, discount_percentage, discount_value, valid_from, valid_until, used")
+        .eq("profile_id", profile.id)
+        .eq("used", false)
+        .lte("valid_from", today)
+        .gte("valid_until", today)
+        .maybeSingle();
+
+      if (couponError) throw couponError;
+      setBirthdayCoupon(coupon);
+    } catch (err) {
+      console.error("Error fetching birthday coupon:", err);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchOrders();
       fetchPromotions();
       fetchProducts();
       fetchCustomerName();
+      fetchBirthdayCoupon();
     }
   }, [user]);
 
@@ -449,6 +490,48 @@ export default function CustomerDashboard() {
               Agende seu horário e acompanhe seus pedidos
             </p>
           </div>
+
+          {/* Birthday Coupon Banner */}
+          {birthdayCoupon && (
+            <Card className="mb-6 glass border-primary bg-gradient-to-r from-primary/20 via-primary/10 to-transparent overflow-hidden relative">
+              <div className="absolute top-0 right-0 opacity-10">
+                <Cake className="h-32 w-32 -mr-8 -mt-8 text-primary" />
+              </div>
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-full bg-primary/20">
+                    <Gift className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-heading font-bold text-foreground text-lg">
+                      🎂 Feliz Aniversário!
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Você tem um cupom especial de aniversário!
+                    </p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge variant="default" className="gap-1 bg-primary text-primary-foreground">
+                        {birthdayCoupon.discount_percentage ? (
+                          <>
+                            <Percent className="h-3 w-3" />
+                            {birthdayCoupon.discount_percentage}% OFF
+                          </>
+                        ) : (
+                          <>
+                            <BadgeDollarSign className="h-3 w-3" />
+                            R$ {birthdayCoupon.discount_value?.toFixed(2)} OFF
+                          </>
+                        )}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        Válido até {format(new Date(birthdayCoupon.valid_until), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Promotions Section */}
           {promotions.length > 0 && (
@@ -606,9 +689,11 @@ export default function CustomerDashboard() {
             <TabsContent value="agendar">
               <AppointmentScheduler 
                 selectedProducts={selectedProducts}
+                birthdayCoupon={birthdayCoupon}
                 onAppointmentCreated={() => {
                   fetchOrders();
                   setSelectedProducts([]);
+                  fetchBirthdayCoupon(); // Refresh coupon status
                   setActiveTab("pedidos");
                 }} 
               />

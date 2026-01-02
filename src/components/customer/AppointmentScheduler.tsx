@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift, Cake, Percent, BadgeDollarSign } from "lucide-react";
 
 interface Service {
   id: string;
@@ -58,8 +58,18 @@ interface SelectedProduct {
   price: number;
 }
 
+interface BirthdayCoupon {
+  id: string;
+  discount_percentage: number | null;
+  discount_value: number | null;
+  valid_from: string;
+  valid_until: string;
+  used: boolean;
+}
+
 interface AppointmentSchedulerProps {
   selectedProducts?: SelectedProduct[];
+  birthdayCoupon?: BirthdayCoupon | null;
   onAppointmentCreated: () => void;
 }
 
@@ -68,7 +78,7 @@ const OPENING_HOUR = 9;
 const CLOSING_HOUR = 19;
 const SLOT_DURATION_MINUTES = 30;
 
-export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreated }: AppointmentSchedulerProps) {
+export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, onAppointmentCreated }: AppointmentSchedulerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
@@ -244,7 +254,7 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
     }
   };
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     // If combo is selected, use promotional price
     if (selectedCombo) {
       const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
@@ -257,6 +267,22 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
     }, 0);
     const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
     return servicesTotal + productsTotal;
+  };
+
+  const calculateDiscount = () => {
+    if (!birthdayCoupon) return 0;
+    const subtotal = calculateSubtotal();
+    if (birthdayCoupon.discount_percentage) {
+      return subtotal * (birthdayCoupon.discount_percentage / 100);
+    }
+    if (birthdayCoupon.discount_value) {
+      return Math.min(birthdayCoupon.discount_value, subtotal);
+    }
+    return 0;
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal() - calculateDiscount();
   };
 
   const handleSubmit = async () => {
@@ -353,6 +379,18 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
           .from("service_combos")
           .update({ current_redemptions: selectedCombo.current_redemptions + 1 })
           .eq("id", selectedCombo.id);
+      }
+
+      // If birthday coupon was used, mark it as used
+      if (birthdayCoupon && calculateDiscount() > 0) {
+        await supabase
+          .from("birthday_coupons")
+          .update({ 
+            used: true, 
+            used_at: new Date().toISOString(),
+            order_id: order.id 
+          })
+          .eq("id", birthdayCoupon.id);
       }
 
       toast({
@@ -707,6 +745,23 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
       {selectedServices.length > 0 && (
         <Card className="glass border-primary/30 bg-primary/5">
           <CardContent className="py-4">
+            {/* Birthday Coupon Applied */}
+            {birthdayCoupon && calculateDiscount() > 0 && (
+              <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Cake className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                    Cupom de Aniversário Aplicado!
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {birthdayCoupon.discount_percentage 
+                    ? `${birthdayCoupon.discount_percentage}% de desconto` 
+                    : `R$ ${birthdayCoupon.discount_value?.toFixed(2)} de desconto`}
+                </p>
+              </div>
+            )}
+
             {/* Products included */}
             {selectedProducts.length > 0 && (
               <div className="mb-4 p-3 bg-muted/30 rounded-lg">
@@ -721,11 +776,31 @@ export function AppointmentScheduler({ selectedProducts = [], onAppointmentCreat
               </div>
             )}
 
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-medium text-foreground">Total</span>
-              <span className="text-2xl font-bold text-primary">
-                R$ {calculateTotal().toFixed(2)}
-              </span>
+            <div className="space-y-2 mb-4">
+              {/* Subtotal */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-foreground">R$ {calculateSubtotal().toFixed(2)}</span>
+              </div>
+              
+              {/* Discount */}
+              {birthdayCoupon && calculateDiscount() > 0 && (
+                <div className="flex items-center justify-between text-sm text-green-600 dark:text-green-400">
+                  <span className="flex items-center gap-1">
+                    <Gift className="h-3 w-3" />
+                    Desconto Aniversário
+                  </span>
+                  <span>- R$ {calculateDiscount().toFixed(2)}</span>
+                </div>
+              )}
+              
+              {/* Total */}
+              <div className="flex items-center justify-between pt-2 border-t border-border">
+                <span className="font-medium text-foreground">Total</span>
+                <span className="text-2xl font-bold text-primary">
+                  R$ {calculateTotal().toFixed(2)}
+                </span>
+              </div>
             </div>
 
             {selectedDate && selectedTime && (
