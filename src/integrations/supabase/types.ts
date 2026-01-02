@@ -50,6 +50,96 @@ export type Database = {
         }
         Relationships: []
       }
+      birthday_coupons: {
+        Row: {
+          created_at: string
+          discount_percentage: number | null
+          discount_value: number | null
+          id: string
+          order_id: string | null
+          profile_id: string
+          used: boolean | null
+          used_at: string | null
+          valid_from: string
+          valid_until: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          discount_percentage?: number | null
+          discount_value?: number | null
+          id?: string
+          order_id?: string | null
+          profile_id: string
+          used?: boolean | null
+          used_at?: string | null
+          valid_from: string
+          valid_until: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          discount_percentage?: number | null
+          discount_value?: number | null
+          id?: string
+          order_id?: string | null
+          profile_id?: string
+          used?: boolean | null
+          used_at?: string | null
+          valid_from?: string
+          valid_until?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "birthday_coupons_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "birthday_coupons_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      birthday_settings: {
+        Row: {
+          auto_create_coupon: boolean | null
+          created_at: string
+          days_after: number | null
+          days_before: number | null
+          default_discount_percentage: number | null
+          enabled: boolean | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_create_coupon?: boolean | null
+          created_at?: string
+          days_after?: number | null
+          days_before?: number | null
+          default_discount_percentage?: number | null
+          enabled?: boolean | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_create_coupon?: boolean | null
+          created_at?: string
+          days_after?: number | null
+          days_before?: number | null
+          default_discount_percentage?: number | null
+          enabled?: boolean | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       combo_services: {
         Row: {
           combo_id: string

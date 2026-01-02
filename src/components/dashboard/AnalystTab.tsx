@@ -1,7 +1,7 @@
-import { Brain, Loader2, TrendingUp, Users, Calendar, DollarSign, Package, Scissors, Tag, Award, AlertTriangle, Sparkles, UserCog } from "lucide-react";
+import { Brain, Loader2, TrendingUp, Users, Calendar, DollarSign, Package, Scissors, Tag, Award, AlertTriangle, Sparkles, UserCog, Cake } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, format, getHours, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, format, getHours, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, getMonth, getDate, addDays, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatCard } from "@/components/ui/stat-card";
 import { XAxis, YAxis, ResponsiveContainer, Tooltip, AreaChart, Area } from "recharts";
@@ -237,6 +237,61 @@ export function AnalystTab() {
 
       if (error) throw error;
       return data;
+    },
+    staleTime: 60000,
+  });
+
+  // Fetch birthday clients for current month
+  const { data: birthdayData } = useQuery({
+    queryKey: ["analyst-birthdays", getMonth(now)],
+    queryFn: async () => {
+      const currentMonth = getMonth(now);
+      const currentDay = getDate(now);
+      
+      // Get all customer user_ids
+      const { data: customerRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "customer");
+
+      if (!customerRoles?.length) return { total: 0, today: 0, thisWeek: 0 };
+
+      const customerIds = customerRoles.map(r => r.user_id);
+
+      // Get profiles with birth_date
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("birth_date")
+        .in("user_id", customerIds)
+        .not("birth_date", "is", null);
+
+      if (!profiles?.length) return { total: 0, today: 0, thisWeek: 0 };
+
+      // Filter clients with birthday this month
+      const birthdayClients = profiles.filter(p => {
+        const birthDate = new Date(p.birth_date!);
+        return getMonth(birthDate) === currentMonth;
+      });
+
+      const todayBirthdays = birthdayClients.filter(p => {
+        const birthDate = new Date(p.birth_date!);
+        return getDate(birthDate) === currentDay;
+      });
+
+      const thisWeekBirthdays = birthdayClients.filter(p => {
+        const birthDate = new Date(p.birth_date!);
+        const birthdayThisYear = new Date(now.getFullYear(), currentMonth, getDate(birthDate));
+        return isWithinInterval(birthdayThisYear, {
+          start: now,
+          end: addDays(now, 7),
+        });
+      });
+
+      return {
+        total: birthdayClients.length,
+        today: todayBirthdays.length,
+        thisWeek: thisWeekBirthdays.length,
+      };
     },
     staleTime: 60000,
   });
@@ -515,6 +570,35 @@ export function AnalystTab() {
         : `📊 Ticket médio caiu ${Math.abs(ticketChange)}%. Ofereça serviços complementares ou produtos.`,
       time: "Este mês",
     });
+  }
+
+  // Birthday insight
+  if (birthdayData) {
+    if (birthdayData.today > 0) {
+      insights.push({
+        type: "birthday",
+        icon: Cake,
+        priority: 1,
+        message: `🎂 ${birthdayData.today} cliente${birthdayData.today > 1 ? "s fazem" : " faz"} aniversário HOJE! Entre em contato para parabenizar e oferecer desconto especial.`,
+        time: "Agora",
+      });
+    } else if (birthdayData.thisWeek > 0) {
+      insights.push({
+        type: "birthday",
+        icon: Cake,
+        priority: 4,
+        message: `🎂 ${birthdayData.thisWeek} cliente${birthdayData.thisWeek > 1 ? "s fazem" : " faz"} aniversário esta semana. Envie mensagens de parabéns e cupons de desconto!`,
+        time: "Esta semana",
+      });
+    } else if (birthdayData.total > 0) {
+      insights.push({
+        type: "birthday",
+        icon: Cake,
+        priority: 6,
+        message: `🎂 ${birthdayData.total} cliente${birthdayData.total > 1 ? "s fazem" : " faz"} aniversário este mês. Aproveite para criar campanhas de fidelização!`,
+        time: "Este mês",
+      });
+    }
   }
 
   // Sort insights by priority

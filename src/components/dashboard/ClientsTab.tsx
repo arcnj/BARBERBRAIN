@@ -1,5 +1,6 @@
 import { SegmentCard } from "@/components/ui/segment-card";
 import { Trophy, AlertTriangle, UserX, Sparkles, Search, Filter, Loader2 } from "lucide-react";
+import { BirthdaySection } from "./BirthdaySection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -209,6 +210,9 @@ export function ClientsTab() {
           className="[animation-delay:500ms]"
         />
       </div>
+
+      {/* Birthday Section */}
+      <BirthdaySection />
       
       {/* Recent Clients */}
       <div className="glass rounded-xl p-5 animate-slide-up [animation-delay:600ms]">
