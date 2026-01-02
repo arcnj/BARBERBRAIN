@@ -1,10 +1,10 @@
-import { Brain, Loader2, TrendingUp, Users, Calendar, DollarSign, Package, Scissors, Tag, Award, AlertTriangle, Sparkles, UserCog, Cake } from "lucide-react";
+import { Brain, Loader2, TrendingUp, Users, Calendar, DollarSign, Package, Scissors, Tag, Award, AlertTriangle, Sparkles, UserCog, Cake, Gift, Percent } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, format, getHours, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, getMonth, getDate, addDays, isWithinInterval } from "date-fns";
+import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, format, getHours, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, getMonth, getDate, addDays, isWithinInterval, eachMonthOfInterval, startOfYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatCard } from "@/components/ui/stat-card";
-import { XAxis, YAxis, ResponsiveContainer, Tooltip, AreaChart, Area } from "recharts";
+import { XAxis, YAxis, ResponsiveContainer, Tooltip, AreaChart, Area, BarChart, Bar, CartesianGrid, Legend } from "recharts";
 
 interface ServiceRanking {
   id: string;
@@ -296,6 +296,37 @@ export function AnalystTab() {
     staleTime: 60000,
   });
 
+  // Fetch birthday coupons for conversion report
+  const { data: birthdayCoupons } = useQuery({
+    queryKey: ["analyst-birthday-coupons", now.getFullYear()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("birthday_coupons")
+        .select("*")
+        .eq("year", now.getFullYear());
+
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60000,
+  });
+
+  // Fetch all birthday coupons for monthly evolution
+  const { data: allBirthdayCoupons } = useQuery({
+    queryKey: ["analyst-all-birthday-coupons"],
+    queryFn: async () => {
+      const yearStart = startOfYear(now);
+      const { data, error } = await supabase
+        .from("birthday_coupons")
+        .select("*")
+        .gte("created_at", yearStart.toISOString());
+
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60000,
+  });
+
   // Calculate service ranking
   const serviceRanking: ServiceRanking[] = [];
   if (orderItems && services) {
@@ -404,6 +435,35 @@ export function AnalystTab() {
   }).length || 0;
 
   const freeSlots = Math.max(0, maxRemainingSlots - futureAppointmentsToday);
+
+  // Birthday coupon conversion metrics
+  const totalCouponsCreated = birthdayCoupons?.length || 0;
+  const totalCouponsUsed = birthdayCoupons?.filter(c => c.used).length || 0;
+  const birthdayConversionRate = totalCouponsCreated > 0 
+    ? Math.round((totalCouponsUsed / totalCouponsCreated) * 100) 
+    : 0;
+  const totalDiscountApplied = birthdayCoupons
+    ?.filter(c => c.used && c.discount_value)
+    ?.reduce((sum, c) => sum + (c.discount_value || 0), 0) || 0;
+
+  // Generate monthly birthday coupon evolution data
+  const monthsOfYear = eachMonthOfInterval({ start: startOfYear(now), end: now });
+  const birthdayEvolutionData = monthsOfYear.map(month => {
+    const monthIndex = getMonth(month);
+    const monthCoupons = allBirthdayCoupons?.filter(c => {
+      const createdDate = new Date(c.created_at);
+      return getMonth(createdDate) === monthIndex;
+    }) || [];
+    
+    const created = monthCoupons.length;
+    const used = monthCoupons.filter(c => c.used).length;
+    
+    return {
+      month: format(month, "MMM", { locale: ptBR }),
+      criados: created,
+      usados: used,
+    };
+  });
 
   // Generate weekly chart data
   const daysOfWeek = eachDayOfInterval({ start: currentWeekStart, end: currentWeekEnd });
@@ -822,6 +882,93 @@ export function AnalystTab() {
           ) : (
             <p className="text-muted-foreground text-sm text-center py-4">Nenhum combo utilizado</p>
           )}
+        </div>
+      </div>
+
+      {/* Birthday Conversion Report */}
+      <div className="glass rounded-xl p-5 animate-slide-up [animation-delay:950ms]">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="rounded-lg bg-gradient-to-r from-pink-500 to-purple-500 p-2">
+            <Cake className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h3 className="font-display font-semibold text-foreground">Relatório de Conversão - Aniversariantes</h3>
+            <p className="text-sm text-muted-foreground">Desempenho dos cupons de aniversário em {now.getFullYear()}</p>
+          </div>
+        </div>
+
+        {/* Conversion Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="text-center p-4 bg-gradient-to-br from-pink-500/10 to-purple-500/10 rounded-lg border border-pink-500/20">
+            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-2">
+              <Gift className="h-4 w-4" />
+              <span className="text-xs">Cupons Criados</span>
+            </div>
+            <p className="text-3xl font-bold text-foreground">{totalCouponsCreated}</p>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-lg border border-green-500/20">
+            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-2">
+              <Users className="h-4 w-4" />
+              <span className="text-xs">Cupons Usados</span>
+            </div>
+            <p className="text-3xl font-bold text-green-500">{totalCouponsUsed}</p>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-lg border border-blue-500/20">
+            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-2">
+              <Percent className="h-4 w-4" />
+              <span className="text-xs">Taxa de Conversão</span>
+            </div>
+            <p className={`text-3xl font-bold ${birthdayConversionRate >= 50 ? 'text-green-500' : birthdayConversionRate >= 25 ? 'text-yellow-500' : 'text-red-500'}`}>
+              {birthdayConversionRate}%
+            </p>
+          </div>
+          <div className="text-center p-4 bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-lg border border-amber-500/20">
+            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-2">
+              <DollarSign className="h-4 w-4" />
+              <span className="text-xs">Desconto Total</span>
+            </div>
+            <p className="text-3xl font-bold text-foreground">
+              R$ {totalDiscountApplied.toFixed(0)}
+            </p>
+          </div>
+        </div>
+
+        {/* Monthly Evolution Chart */}
+        <div>
+          <h4 className="text-sm font-medium text-foreground mb-3">Evolução Mensal de Cupons</h4>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={birthdayEvolutionData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis 
+                  dataKey="month" 
+                  axisLine={false} 
+                  tickLine={false}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                  }}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '10px' }}
+                  formatter={(value) => <span style={{ color: 'hsl(var(--foreground))' }}>{value === 'criados' ? 'Criados' : 'Usados'}</span>}
+                />
+                <Bar dataKey="criados" fill="hsl(330, 80%, 60%)" radius={[4, 4, 0, 0]} name="criados" />
+                <Bar dataKey="usados" fill="hsl(142, 76%, 45%)" radius={[4, 4, 0, 0]} name="usados" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
