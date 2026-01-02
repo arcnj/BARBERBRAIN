@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Brain, Loader2, TrendingUp, Users, Calendar, DollarSign, Package, Scissors, Tag, Award, AlertTriangle, Sparkles, UserCog, Cake, Gift, Percent } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -5,6 +6,7 @@ import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, format, getH
 import { ptBR } from "date-fns/locale";
 import { StatCard } from "@/components/ui/stat-card";
 import { XAxis, YAxis, ResponsiveContainer, Tooltip, AreaChart, Area, BarChart, Bar, CartesianGrid, Legend } from "recharts";
+import { PeriodFilter, PeriodType } from "@/components/ui/period-filter";
 
 interface ServiceRanking {
   id: string;
@@ -30,10 +32,17 @@ interface ComboRanking {
 export function AnalystTab() {
   const now = new Date();
   const currentHour = getHours(now);
-  const currentMonthStart = startOfMonth(now).toISOString();
-  const currentMonthEnd = endOfMonth(now).toISOString();
-  const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString();
-  const lastMonthEnd = endOfMonth(subMonths(now, 1)).toISOString();
+  
+  // Period filter state
+  const [periodStart, setPeriodStart] = useState<Date>(startOfMonth(now));
+  const [periodEnd, setPeriodEnd] = useState<Date>(endOfMonth(now));
+  const [periodType, setPeriodType] = useState<PeriodType>("month");
+  
+  // Calculate comparison period (same duration before the selected period)
+  const periodDuration = periodEnd.getTime() - periodStart.getTime();
+  const comparisonStart = new Date(periodStart.getTime() - periodDuration);
+  const comparisonEnd = new Date(periodEnd.getTime() - periodDuration);
+  
   const todayStart = startOfDay(now).toISOString();
   const todayEnd = endOfDay(now).toISOString();
   const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
@@ -44,15 +53,21 @@ export function AnalystTab() {
   const businessEndHour = 20;
   const isBusinessHours = currentHour >= businessStartHour && currentHour < businessEndHour;
 
-  // Fetch current month orders with items
-  const { data: currentMonthOrders, isLoading: isLoadingOrders } = useQuery({
-    queryKey: ["analyst-current-month", currentMonthStart, currentMonthEnd],
+  const handlePeriodChange = (start: Date, end: Date, type: PeriodType) => {
+    setPeriodStart(start);
+    setPeriodEnd(end);
+    setPeriodType(type);
+  };
+
+  // Fetch current period orders
+  const { data: currentPeriodOrders, isLoading: isLoadingOrders } = useQuery({
+    queryKey: ["analyst-current-period", periodStart.toISOString(), periodEnd.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("id, total_price, status, scheduled_at, customer_id, barber_id, preferred_barber_id")
-        .gte("scheduled_at", currentMonthStart)
-        .lte("scheduled_at", currentMonthEnd);
+        .gte("scheduled_at", periodStart.toISOString())
+        .lte("scheduled_at", periodEnd.toISOString());
 
       if (error) throw error;
       return data;
@@ -60,15 +75,15 @@ export function AnalystTab() {
     staleTime: 60000,
   });
 
-  // Fetch last month orders
-  const { data: lastMonthOrders } = useQuery({
-    queryKey: ["analyst-last-month", lastMonthStart, lastMonthEnd],
+  // Fetch comparison period orders
+  const { data: comparisonPeriodOrders } = useQuery({
+    queryKey: ["analyst-comparison-period", comparisonStart.toISOString(), comparisonEnd.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("id, total_price, status")
-        .gte("scheduled_at", lastMonthStart)
-        .lte("scheduled_at", lastMonthEnd)
+        .gte("scheduled_at", comparisonStart.toISOString())
+        .lte("scheduled_at", comparisonEnd.toISOString())
         .eq("status", "completed");
 
       if (error) throw error;
@@ -112,9 +127,9 @@ export function AnalystTab() {
 
   // Fetch order items for service ranking
   const { data: orderItems } = useQuery({
-    queryKey: ["analyst-order-items", currentMonthStart, currentMonthEnd],
+    queryKey: ["analyst-order-items", periodStart.toISOString(), periodEnd.toISOString()],
     queryFn: async () => {
-      const completedOrderIds = currentMonthOrders
+      const completedOrderIds = currentPeriodOrders
         ?.filter(o => o.status === "completed")
         .map(o => o.id) || [];
 
@@ -128,15 +143,15 @@ export function AnalystTab() {
       if (error) throw error;
       return data;
     },
-    enabled: !!currentMonthOrders,
+    enabled: !!currentPeriodOrders,
     staleTime: 60000,
   });
 
   // Fetch order products for product ranking
   const { data: orderProducts } = useQuery({
-    queryKey: ["analyst-order-products", currentMonthStart, currentMonthEnd],
+    queryKey: ["analyst-order-products", periodStart.toISOString(), periodEnd.toISOString()],
     queryFn: async () => {
-      const completedOrderIds = currentMonthOrders
+      const completedOrderIds = currentPeriodOrders
         ?.filter(o => o.status === "completed")
         .map(o => o.id) || [];
 
@@ -150,7 +165,7 @@ export function AnalystTab() {
       if (error) throw error;
       return data;
     },
-    enabled: !!currentMonthOrders,
+    enabled: !!currentPeriodOrders,
     staleTime: 60000,
   });
 
@@ -296,14 +311,15 @@ export function AnalystTab() {
     staleTime: 60000,
   });
 
-  // Fetch birthday coupons for conversion report
+  // Fetch birthday coupons for the selected period
   const { data: birthdayCoupons } = useQuery({
-    queryKey: ["analyst-birthday-coupons", now.getFullYear()],
+    queryKey: ["analyst-birthday-coupons", periodStart.toISOString(), periodEnd.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("birthday_coupons")
         .select("*")
-        .eq("year", now.getFullYear());
+        .gte("created_at", periodStart.toISOString())
+        .lte("created_at", periodEnd.toISOString());
 
       if (error) throw error;
       return data;
@@ -311,9 +327,9 @@ export function AnalystTab() {
     staleTime: 60000,
   });
 
-  // Fetch all birthday coupons for monthly evolution
+  // Fetch all birthday coupons for monthly evolution (current year)
   const { data: allBirthdayCoupons } = useQuery({
-    queryKey: ["analyst-all-birthday-coupons"],
+    queryKey: ["analyst-all-birthday-coupons", now.getFullYear()],
     queryFn: async () => {
       const yearStart = startOfYear(now);
       const { data, error } = await supabase
@@ -395,32 +411,32 @@ export function AnalystTab() {
     .sort((a, b) => b.redemptions - a.redemptions);
 
   // Calculate metrics
-  const completedOrders = currentMonthOrders?.filter(o => o.status === "completed") || [];
-  const cancelledOrders = currentMonthOrders?.filter(o => o.status === "cancelled") || [];
+  const completedOrders = currentPeriodOrders?.filter(o => o.status === "completed") || [];
+  const cancelledOrders = currentPeriodOrders?.filter(o => o.status === "cancelled") || [];
   const currentRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_price || 0), 0);
-  const lastMonthRevenue = lastMonthOrders?.reduce((sum, o) => sum + Number(o.total_price || 0), 0) || 0;
+  const comparisonRevenue = comparisonPeriodOrders?.reduce((sum, o) => sum + Number(o.total_price || 0), 0) || 0;
   
-  const revenueChange = lastMonthRevenue > 0 
-    ? Math.round(((currentRevenue - lastMonthRevenue) / lastMonthRevenue) * 100) 
+  const revenueChange = comparisonRevenue > 0 
+    ? Math.round(((currentRevenue - comparisonRevenue) / comparisonRevenue) * 100) 
     : 0;
 
-  const currentMonthCount = completedOrders.length;
-  const lastMonthCount = lastMonthOrders?.length || 0;
-  const countChange = lastMonthCount > 0 
-    ? Math.round(((currentMonthCount - lastMonthCount) / lastMonthCount) * 100) 
+  const currentPeriodCount = completedOrders.length;
+  const comparisonPeriodCount = comparisonPeriodOrders?.length || 0;
+  const countChange = comparisonPeriodCount > 0 
+    ? Math.round(((currentPeriodCount - comparisonPeriodCount) / comparisonPeriodCount) * 100) 
     : 0;
 
-  const ticketMedio = currentMonthCount > 0 ? currentRevenue / currentMonthCount : 0;
-  const lastTicketMedio = lastMonthCount > 0 ? lastMonthRevenue / lastMonthCount : 0;
-  const ticketChange = lastTicketMedio > 0 
-    ? Math.round(((ticketMedio - lastTicketMedio) / lastTicketMedio) * 100) 
+  const ticketMedio = currentPeriodCount > 0 ? currentRevenue / currentPeriodCount : 0;
+  const comparisonTicketMedio = comparisonPeriodCount > 0 ? comparisonRevenue / comparisonPeriodCount : 0;
+  const ticketChange = comparisonTicketMedio > 0 
+    ? Math.round(((ticketMedio - comparisonTicketMedio) / comparisonTicketMedio) * 100) 
     : 0;
 
   const todayPending = todayOrders?.filter(o => o.status === "pending" || o.status === "confirmed").length || 0;
   const todayCompleted = todayOrders?.filter(o => o.status === "completed").length || 0;
   const todayCancelled = todayOrders?.filter(o => o.status === "cancelled").length || 0;
-  const cancelRate = currentMonthOrders?.length 
-    ? Math.round((cancelledOrders.length / currentMonthOrders.length) * 100) 
+  const cancelRate = currentPeriodOrders?.length 
+    ? Math.round((cancelledOrders.length / currentPeriodOrders.length) * 100) 
     : 0;
 
   // Calcular slots restantes apenas se estiver em horário comercial
@@ -533,15 +549,15 @@ export function AnalystTab() {
   }
 
   // Insight sobre faturamento
-  if (lastMonthRevenue > 0 && revenueChange !== 0) {
+  if (comparisonRevenue > 0 && revenueChange !== 0) {
     insights.push({
       type: "revenue",
       icon: revenueChange > 0 ? TrendingUp : AlertTriangle,
       priority: 2,
       message: revenueChange > 0 
-        ? `📈 Ótimo! Faturamento este mês está ${revenueChange}% acima do mês passado. Continue assim!`
-        : `⚠️ Faturamento ${Math.abs(revenueChange)}% abaixo do mês passado. Considere criar promoções ou combos atrativos.`,
-      time: "Este mês",
+        ? `📈 Ótimo! Faturamento no período está ${revenueChange}% acima do período anterior. Continue assim!`
+        : `⚠️ Faturamento ${Math.abs(revenueChange)}% abaixo do período anterior. Considere criar promoções ou combos atrativos.`,
+      time: "Período selecionado",
     });
   }
 
@@ -553,7 +569,7 @@ export function AnalystTab() {
       icon: Scissors,
       priority: 3,
       message: `🏆 "${topService.name}" é seu serviço campeão com ${topService.count} realizações e R$ ${topService.revenue.toLocaleString("pt-BR", { minimumFractionDigits: 0 })} em faturamento.`,
-      time: "Este mês",
+      time: "Período selecionado",
     });
   }
 
@@ -565,14 +581,14 @@ export function AnalystTab() {
       icon: Package,
       priority: 4,
       message: `📦 "${topProduct.name}" é seu produto mais vendido: ${topProduct.count} unidades (R$ ${topProduct.revenue.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}).`,
-      time: "Este mês",
+      time: "Período selecionado",
     });
   } else if (products && products.length > 0 && completedOrders.length > 0) {
     insights.push({
       type: "product",
       icon: Package,
       priority: 4,
-      message: "💡 Nenhum produto vendido este mês. Ofereça produtos durante os atendimentos para aumentar o ticket médio!",
+      message: "💡 Nenhum produto vendido no período. Ofereça produtos durante os atendimentos para aumentar o ticket médio!",
       time: "Sugestão",
     });
   }
@@ -604,7 +620,7 @@ export function AnalystTab() {
       icon: AlertTriangle,
       priority: 2,
       message: `⚠️ Taxa de cancelamento em ${cancelRate}%. Confirme agendamentos com antecedência via WhatsApp.`,
-      time: "Este mês",
+      time: "Período selecionado",
     });
   }
 
@@ -620,7 +636,7 @@ export function AnalystTab() {
   }
 
   // Ticket médio insight
-  if (ticketMedio > 0 && lastMonthOrders && lastMonthOrders.length > 0 && Math.abs(ticketChange) > 5) {
+  if (ticketMedio > 0 && comparisonPeriodOrders && comparisonPeriodOrders.length > 0 && Math.abs(ticketChange) > 5) {
     insights.push({
       type: "ticket",
       icon: DollarSign,
@@ -628,7 +644,7 @@ export function AnalystTab() {
       message: ticketChange > 0
         ? `📊 Ticket médio subiu ${ticketChange}% (R$ ${ticketMedio.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}). Excelente!`
         : `📊 Ticket médio caiu ${Math.abs(ticketChange)}%. Ofereça serviços complementares ou produtos.`,
-      time: "Este mês",
+      time: "Período selecionado",
     });
   }
 
@@ -664,6 +680,11 @@ export function AnalystTab() {
   // Sort insights by priority
   insights.sort((a, b) => a.priority - b.priority);
 
+  // Get period label for display
+  const getPeriodLabel = () => {
+    return `${format(periodStart, "dd/MM/yyyy", { locale: ptBR })} - ${format(periodEnd, "dd/MM/yyyy", { locale: ptBR })}`;
+  };
+
   if (isLoadingOrders) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -674,29 +695,38 @@ export function AnalystTab() {
 
   return (
     <div className="space-y-6 pb-24 lg:pb-6">
-      {/* Header */}
+      {/* Header with Period Filter */}
       <div className="animate-fade-in">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-gradient-gold p-3">
-            <Sparkles className="h-6 w-6 text-primary-foreground" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-gradient-gold p-3">
+              <Sparkles className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div>
+              <h2 className="font-display text-2xl font-bold text-foreground">Analista Barber</h2>
+              <p className="text-muted-foreground">
+                {format(now, "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-display text-2xl font-bold text-foreground">Analista Barber</h2>
-            <p className="text-muted-foreground">
-              {format(now, "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-            </p>
-          </div>
+          
+          <PeriodFilter onPeriodChange={handlePeriodChange} />
+        </div>
+        
+        {/* Period indicator */}
+        <div className="mt-3 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 inline-block">
+          Período: {getPeriodLabel()}
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Faturamento Mensal"
+          title="Faturamento"
           value={`R$ ${currentRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`}
           icon={DollarSign}
           trend={revenueChange !== 0 ? { value: `${revenueChange > 0 ? "+" : ""}${revenueChange}%`, isPositive: revenueChange > 0 } : undefined}
-          subtitle="vs mês anterior"
+          subtitle="vs período anterior"
           className="[animation-delay:100ms]"
         />
         
@@ -705,7 +735,7 @@ export function AnalystTab() {
           value={`R$ ${ticketMedio.toFixed(2)}`}
           icon={TrendingUp}
           trend={ticketChange !== 0 ? { value: `${ticketChange > 0 ? "+" : ""}${ticketChange}%`, isPositive: ticketChange > 0 } : undefined}
-          subtitle="vs mês anterior"
+          subtitle="vs período anterior"
           className="[animation-delay:200ms]"
         />
         
@@ -719,10 +749,10 @@ export function AnalystTab() {
         
         <StatCard
           title="Atendimentos"
-          value={String(currentMonthCount)}
+          value={String(currentPeriodCount)}
           icon={Scissors}
           trend={countChange !== 0 ? { value: `${countChange > 0 ? "+" : ""}${countChange}%`, isPositive: countChange > 0 } : undefined}
-          subtitle="vs mês anterior"
+          subtitle="vs período anterior"
           className="[animation-delay:400ms]"
         />
       </div>
@@ -830,7 +860,7 @@ export function AnalystTab() {
               ))}
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm text-center py-4">Nenhum serviço este mês</p>
+            <p className="text-muted-foreground text-sm text-center py-4">Nenhum serviço no período</p>
           )}
         </div>
 
@@ -893,7 +923,7 @@ export function AnalystTab() {
           </div>
           <div>
             <h3 className="font-display font-semibold text-foreground">Relatório de Conversão - Aniversariantes</h3>
-            <p className="text-sm text-muted-foreground">Desempenho dos cupons de aniversário em {now.getFullYear()}</p>
+            <p className="text-sm text-muted-foreground">Desempenho dos cupons no período selecionado</p>
           </div>
         </div>
 
@@ -935,7 +965,7 @@ export function AnalystTab() {
 
         {/* Monthly Evolution Chart */}
         <div>
-          <h4 className="text-sm font-medium text-foreground mb-3">Evolução Mensal de Cupons</h4>
+          <h4 className="text-sm font-medium text-foreground mb-3">Evolução Mensal de Cupons ({now.getFullYear()})</h4>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={birthdayEvolutionData}>
@@ -978,7 +1008,7 @@ export function AnalystTab() {
           <UserCog className="h-5 w-5 text-primary" />
           <div>
             <h3 className="font-display font-semibold text-foreground">Desempenho por Barbeiro</h3>
-            <p className="text-sm text-muted-foreground">Ranking do mês</p>
+            <p className="text-sm text-muted-foreground">Ranking do período selecionado</p>
           </div>
         </div>
         
