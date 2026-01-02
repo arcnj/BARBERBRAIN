@@ -6,8 +6,7 @@ import { Navigation, BottomNavigation } from "@/components/layout/Navigation";
 import { TodayTab } from "@/components/dashboard/TodayTab";
 import { AgendaTab } from "@/components/dashboard/AgendaTab";
 import { ClientsTab } from "@/components/dashboard/ClientsTab";
-import { BusinessTab } from "@/components/dashboard/BusinessTab";
-import { SuggestionsTab } from "@/components/dashboard/SuggestionsTab";
+import { AnalystTab } from "@/components/dashboard/AnalystTab";
 import { ServicesTab } from "@/components/dashboard/ServicesTab";
 import { ProductsTab } from "@/components/dashboard/ProductsTab";
 import { PromotionsTab } from "@/components/dashboard/PromotionsTab";
@@ -49,12 +48,8 @@ export default function Dashboard() {
         return <ProductsTab />;
       case "promocoes":
         return <PromotionsTab />;
-      case "negocio":
-        return <BusinessTab />;
-      case "sugestoes":
-        return <SuggestionsTab />;
-      case "configuracoes":
-        return <BusinessTab />;
+      case "analista":
+        return <AnalystTab />;
       default:
         return <TodayTab />;
     }
