@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 interface WhatsAppButtonProps {
   phone: string | null | undefined;
   name?: string;
+  message?: string;
   className?: string;
   variant?: "ghost" | "outline" | "default";
   size?: "icon" | "sm" | "default";
@@ -25,6 +26,7 @@ function formatPhoneForWhatsApp(phone: string): string {
 export function WhatsAppButton({ 
   phone, 
   name, 
+  message: customMessage,
   className, 
   variant = "ghost", 
   size = "icon",
@@ -33,7 +35,7 @@ export function WhatsAppButton({
   if (!phone) return null;
   
   const formattedPhone = formatPhoneForWhatsApp(phone);
-  const message = name ? `Olá ${name}!` : "Olá!";
+  const message = customMessage || (name ? `Olá ${name}!` : "Olá!");
   const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
   
   const handleClick = (e: React.MouseEvent) => {
