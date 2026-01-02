@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cake, Gift, ChevronDown, ChevronUp, PartyPopper, Calendar, Loader2, Settings } from "lucide-react";
+import { Cake, Gift, PartyPopper, Settings, TrendingUp, Users, Percent, DollarSign, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, getMonth, getDate, addDays, subDays, isSameDay, isWithinInterval } from "date-fns";
@@ -233,6 +233,16 @@ export function BirthdaySection() {
   const totalBirthdays = birthdayClients?.length || 0;
   const couponsUsed = birthdayClients?.filter(c => c.couponUsed).length || 0;
 
+  // Calculate conversion metrics
+  const totalCouponsCreated = birthdayCoupons?.length || 0;
+  const totalCouponsUsed = birthdayCoupons?.filter(c => c.used).length || 0;
+  const conversionRate = totalCouponsCreated > 0 
+    ? Math.round((totalCouponsUsed / totalCouponsCreated) * 100) 
+    : 0;
+  const totalDiscountApplied = birthdayCoupons
+    ?.filter(c => c.used && c.discount_value)
+    ?.reduce((sum, c) => sum + (c.discount_value || 0), 0) || 0;
+
   if (isLoading || loadingSettings) {
     return (
       <div className="animate-fade-in">
@@ -297,6 +307,48 @@ export function BirthdaySection() {
               </p>
             </div>
           )}
+
+          {/* Conversion Report */}
+          <div className="mb-6 p-4 bg-gradient-to-r from-pink-500/10 to-purple-500/10 rounded-lg border border-pink-500/20">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="h-5 w-5 text-pink-500" />
+              <h4 className="font-semibold text-foreground">Relatório de Conversão {today.getFullYear()}</h4>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                  <Gift className="h-4 w-4" />
+                  <span className="text-xs">Cupons Criados</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground">{totalCouponsCreated}</p>
+              </div>
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                  <Users className="h-4 w-4" />
+                  <span className="text-xs">Cupons Usados</span>
+                </div>
+                <p className="text-2xl font-bold text-green-500">{totalCouponsUsed}</p>
+              </div>
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                  <Percent className="h-4 w-4" />
+                  <span className="text-xs">Taxa Conversão</span>
+                </div>
+                <p className={`text-2xl font-bold ${conversionRate >= 50 ? 'text-green-500' : conversionRate >= 25 ? 'text-yellow-500' : 'text-red-500'}`}>
+                  {conversionRate}%
+                </p>
+              </div>
+              <div className="text-center p-3 bg-background/50 rounded-lg">
+                <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                  <DollarSign className="h-4 w-4" />
+                  <span className="text-xs">Desconto Total</span>
+                </div>
+                <p className="text-2xl font-bold text-foreground">
+                  R$ {totalDiscountApplied.toFixed(0)}
+                </p>
+              </div>
+            </div>
+          </div>
 
           {totalBirthdays === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
