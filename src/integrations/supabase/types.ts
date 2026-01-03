@@ -116,6 +116,7 @@ export type Database = {
           default_discount_percentage: number | null
           enabled: boolean | null
           id: string
+          message_template: string | null
           updated_at: string
         }
         Insert: {
@@ -126,6 +127,7 @@ export type Database = {
           default_discount_percentage?: number | null
           enabled?: boolean | null
           id?: string
+          message_template?: string | null
           updated_at?: string
         }
         Update: {
@@ -136,6 +138,7 @@ export type Database = {
           default_discount_percentage?: number | null
           enabled?: boolean | null
           id?: string
+          message_template?: string | null
           updated_at?: string
         }
         Relationships: []
