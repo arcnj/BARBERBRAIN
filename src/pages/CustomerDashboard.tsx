@@ -11,6 +11,7 @@ import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, B
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
+import { SatisfactionPopup } from "@/components/customer/SatisfactionPopup";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -900,6 +901,9 @@ export default function CustomerDashboard() {
             </TabsContent>
           </Tabs>
         </main>
+        
+        {/* Satisfaction Popup */}
+        {user && <SatisfactionPopup userId={user.id} />}
       </div>
     </>
   );
