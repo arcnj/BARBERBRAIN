@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cake, Gift, PartyPopper, Settings, Loader2 } from "lucide-react";
+import { Cake, Gift, PartyPopper, Settings, Loader2, MessageSquare } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, getMonth, getDate, addDays, subDays, isSameDay, isWithinInterval } from "date-fns";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +39,20 @@ interface BirthdaySettings {
   days_before: number;
   days_after: number;
   auto_create_coupon: boolean;
+  message_template: string;
+}
+
+const DEFAULT_MESSAGE = 'Olá {nome}! 🎂 Feliz Aniversário! Temos um presente especial para você: um cupom de {desconto}% de desconto válido por {dias} dias. Venha nos visitar!';
+
+function formatBirthdayMessage(template: string, client: { name: string }, settings: BirthdaySettings | null) {
+  const firstName = client.name.split(' ')[0];
+  const discount = settings?.default_discount_percentage || 10;
+  const totalDays = (settings?.days_before || 7) + (settings?.days_after || 7);
+  
+  return template
+    .replace(/{nome}/g, firstName)
+    .replace(/{desconto}/g, String(discount))
+    .replace(/{dias}/g, String(totalDays));
 }
 
 export function BirthdaySection() {
@@ -366,10 +381,11 @@ export function BirthdaySection() {
                         <WhatsAppButton 
                           phone={client.phone} 
                           name={client.name}
-                          message={isToday 
-                            ? `Olá ${client.name}! 🎉 Feliz aniversário! Temos um presente especial para você: ${settings?.default_discount_percentage || 10}% de desconto no seu próximo corte. Venha comemorar conosco!`
-                            : `Olá ${client.name}! 🎂 Seu aniversário está chegando (${format(birthdayThisYear, "dd/MM")}) e preparamos um presente especial: ${settings?.default_discount_percentage || 10}% de desconto! Agende seu horário.`
-                          }
+                          message={formatBirthdayMessage(
+                            settings?.message_template || DEFAULT_MESSAGE,
+                            client,
+                            settings
+                          )}
                         />
                       </div>
                     </div>
@@ -484,6 +500,33 @@ export function BirthdaySection() {
                     setLocalSettings({ ...localSettings, auto_create_coupon: checked })
                   }
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="message_template" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Mensagem de WhatsApp
+                </Label>
+                <Textarea
+                  id="message_template"
+                  rows={4}
+                  value={localSettings.message_template || DEFAULT_MESSAGE}
+                  onChange={(e) =>
+                    setLocalSettings({
+                      ...localSettings,
+                      message_template: e.target.value,
+                    })
+                  }
+                  placeholder="Digite a mensagem para o cliente..."
+                />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Variáveis disponíveis:</p>
+                  <ul className="list-disc list-inside ml-2">
+                    <li><code className="bg-muted px-1 rounded">{'{nome}'}</code> - Primeiro nome do cliente</li>
+                    <li><code className="bg-muted px-1 rounded">{'{desconto}'}</code> - Porcentagem de desconto</li>
+                    <li><code className="bg-muted px-1 rounded">{'{dias}'}</code> - Total de dias de validade</li>
+                  </ul>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
