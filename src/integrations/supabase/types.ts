@@ -498,6 +498,105 @@ export type Database = {
           },
         ]
       }
+      satisfaction_questions: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          id: string
+          is_essential: boolean | null
+          options: Json | null
+          question_order: number
+          question_text: string
+          question_type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          is_essential?: boolean | null
+          options?: Json | null
+          question_order: number
+          question_text: string
+          question_type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          is_essential?: boolean | null
+          options?: Json | null
+          question_order?: number
+          question_text?: string
+          question_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      satisfaction_responses: {
+        Row: {
+          barber_id: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          order_id: string
+          responses: Json
+        }
+        Insert: {
+          barber_id?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          order_id: string
+          responses: Json
+        }
+        Update: {
+          barber_id?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          order_id?: string
+          responses?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "satisfaction_responses_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "satisfaction_responses_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      satisfaction_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       service_combos: {
         Row: {
           active: boolean

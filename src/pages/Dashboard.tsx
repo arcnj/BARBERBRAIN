@@ -11,6 +11,7 @@ import { ServicesTab } from "@/components/dashboard/ServicesTab";
 import { ProductsTab } from "@/components/dashboard/ProductsTab";
 import { PromotionsTab } from "@/components/dashboard/PromotionsTab";
 import { BarbersTab } from "@/components/dashboard/BarbersTab";
+import { SatisfactionTab } from "@/components/dashboard/SatisfactionTab";
 import { Helmet } from "react-helmet";
 import { Loader2 } from "lucide-react";
 
@@ -48,6 +49,8 @@ export default function Dashboard() {
         return <ProductsTab />;
       case "promocoes":
         return <PromotionsTab />;
+      case "satisfacao":
+        return <SatisfactionTab />;
       case "analista":
         return <AnalystTab />;
       default:
