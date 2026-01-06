@@ -22,6 +22,7 @@ import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle,
 import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvailableTimeSlots } from "./AvailableTimeSlots";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
@@ -735,49 +736,49 @@ export function AgendaTab() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Data e Hora</Label>
-                  <div className="flex gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="flex-1 justify-start">
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(newAppointment.scheduledAt, "dd/MM/yyyy")}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={newAppointment.scheduledAt}
-                          onSelect={(date) =>
-                            date && setNewAppointment({
-                              ...newAppointment,
-                              scheduledAt: new Date(
-                                date.getFullYear(),
-                                date.getMonth(),
-                                date.getDate(),
-                                newAppointment.scheduledAt.getHours(),
-                                newAppointment.scheduledAt.getMinutes()
-                              ),
-                            })
-                          }
-                          locale={ptBR}
-                          className="pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <Input
-                      type="time"
-                      className="w-32"
-                      value={format(newAppointment.scheduledAt, "HH:mm")}
-                      onChange={(e) => {
-                        const [hours, minutes] = e.target.value.split(":").map(Number);
-                        const newDate = new Date(newAppointment.scheduledAt);
-                        newDate.setHours(hours, minutes);
-                        setNewAppointment({ ...newAppointment, scheduledAt: newDate });
-                      }}
-                    />
-                  </div>
+                  <Label>Data</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(newAppointment.scheduledAt, "dd/MM/yyyy", { locale: ptBR })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={newAppointment.scheduledAt}
+                        onSelect={(date) =>
+                          date && setNewAppointment({
+                            ...newAppointment,
+                            scheduledAt: new Date(
+                              date.getFullYear(),
+                              date.getMonth(),
+                              date.getDate(),
+                              newAppointment.scheduledAt.getHours(),
+                              newAppointment.scheduledAt.getMinutes()
+                            ),
+                          })
+                        }
+                        locale={ptBR}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
+
+                <AvailableTimeSlots
+                  selectedDate={newAppointment.scheduledAt}
+                  selectedTime={format(newAppointment.scheduledAt, "HH:mm")}
+                  onSelectTime={(time) => {
+                    const [hours, minutes] = time.split(":").map(Number);
+                    const newDate = new Date(newAppointment.scheduledAt);
+                    newDate.setHours(hours, minutes);
+                    setNewAppointment({ ...newAppointment, scheduledAt: newDate });
+                  }}
+                  barberId={barberId}
+                  serviceDuration={services?.find(s => s.id === newAppointment.serviceId)?.duration_minutes || 30}
+                />
 
                 <div className="space-y-2">
                   <Label>Observações</Label>
