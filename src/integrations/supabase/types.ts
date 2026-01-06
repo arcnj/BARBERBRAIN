@@ -50,6 +50,33 @@ export type Database = {
         }
         Relationships: []
       }
+      barbershop_settings: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          name: string | null
+          updated_at: string
+          whatsapp_phone: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+          whatsapp_phone?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+          whatsapp_phone?: string | null
+        }
+        Relationships: []
+      }
       birthday_coupons: {
         Row: {
           created_at: string

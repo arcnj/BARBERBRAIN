@@ -29,8 +29,6 @@ import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, i
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift, Cake, Percent, BadgeDollarSign, MessageCircle } from "lucide-react";
 
-// Barbershop WhatsApp number - can be configured
-const BARBERSHOP_WHATSAPP = "5511999999999"; // TODO: Get from settings
 
 interface Service {
   id: string;
@@ -105,6 +103,7 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [barbershopWhatsapp, setBarbershopWhatsapp] = useState<string>("");
   const [appointmentDetails, setAppointmentDetails] = useState<{
     date: string;
     time: string;
@@ -115,7 +114,23 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
 
   useEffect(() => {
     fetchData();
+    fetchBarbershopSettings();
   }, []);
+
+  const fetchBarbershopSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from("barbershop_settings")
+        .select("whatsapp_phone")
+        .single();
+      
+      if (data?.whatsapp_phone) {
+        setBarbershopWhatsapp(data.whatsapp_phone);
+      }
+    } catch (err) {
+      console.error("Error fetching barbershop settings:", err);
+    }
+  };
 
   useEffect(() => {
     if (selectedDate && preferredBarber) {
@@ -888,18 +903,20 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
               </div>
 
               <div className="flex flex-col gap-2">
-                <Button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => {
-                    const message = `Olá! 👋\n\nAcabei de fazer um agendamento:\n\n📅 *Data:* ${appointmentDetails.date} às ${appointmentDetails.time}\n✂️ *Serviços:* ${appointmentDetails.services.join(", ")}\n💈 *Barbeiro:* ${appointmentDetails.barber}\n💰 *Total:* R$ ${appointmentDetails.total.toFixed(2)}\n\nAguardo confirmação! 😊`;
-                    const whatsappUrl = `https://wa.me/${BARBERSHOP_WHATSAPP}?text=${encodeURIComponent(message)}`;
-                    window.open(whatsappUrl, "_blank");
-                    setShowSuccessDialog(false);
-                  }}
-                >
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                  Enviar para WhatsApp da Barbearia
-                </Button>
+                {barbershopWhatsapp && (
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => {
+                      const message = `Olá! 👋\n\nAcabei de fazer um agendamento:\n\n📅 *Data:* ${appointmentDetails.date} às ${appointmentDetails.time}\n✂️ *Serviços:* ${appointmentDetails.services.join(", ")}\n💈 *Barbeiro:* ${appointmentDetails.barber}\n💰 *Total:* R$ ${appointmentDetails.total.toFixed(2)}\n\nAguardo confirmação! 😊`;
+                      const whatsappUrl = `https://wa.me/${barbershopWhatsapp}?text=${encodeURIComponent(message)}`;
+                      window.open(whatsappUrl, "_blank");
+                      setShowSuccessDialog(false);
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Enviar para WhatsApp da Barbearia
+                  </Button>
+                )}
                 
                 <Button
                   variant="outline"
