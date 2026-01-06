@@ -14,11 +14,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays, setHours, setMinutes, isSameDay } from "date-fns";
+import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays, setHours, setMinutes, isSameDay, getMonth, getDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Loader2, ChevronLeft, ChevronRight, Cake, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
@@ -33,6 +34,8 @@ interface Order {
   profiles: {
     full_name: string;
     phone: string | null;
+    avatar_url: string | null;
+    birth_date: string | null;
   } | null;
   barbers: {
     name: string;
@@ -139,7 +142,9 @@ export function AgendaTab() {
           barber_id,
           profiles!orders_customer_id_profiles_fkey (
             full_name,
-            phone
+            phone,
+            avatar_url,
+            birth_date
           ),
           barbers!orders_barber_id_fkey (
             name
@@ -404,8 +409,100 @@ export function AgendaTab() {
   const pendingCount = allOrders?.filter(o => ["pending", "confirmed", "in_progress"].includes(o.status)).length || 0;
   const completedCount = allOrders?.filter(o => o.status === "completed").length || 0;
 
+  // Get next upcoming appointment (only for today)
+  const nextAppointment = useMemo(() => {
+    if (!isToday(selectedDate) || !allOrders) return null;
+    
+    const now = new Date();
+    const upcoming = allOrders
+      .filter(o => 
+        new Date(o.scheduled_at) >= now && 
+        !["completed", "cancelled"].includes(o.status)
+      )
+      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+    
+    return upcoming[0] || null;
+  }, [allOrders, selectedDate]);
+
+  // Check if it's the customer's birthday
+  const isBirthday = (birthDate: string | null | undefined) => {
+    if (!birthDate) return false;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    return getMonth(today) === getMonth(birth) && getDate(today) === getDate(birth);
+  };
+
   return (
     <div className="space-y-4">
+      {/* Next Client Card */}
+      {nextAppointment && isToday(selectedDate) && (
+        <Card className={cn(
+          "overflow-hidden border-2",
+          isBirthday(nextAppointment.profiles?.birth_date) 
+            ? "border-pink-500 bg-gradient-to-r from-pink-500/10 to-purple-500/10" 
+            : "border-primary/50 bg-primary/5"
+        )}>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              <div className="relative">
+                <Avatar className="h-16 w-16 border-2 border-primary">
+                  <AvatarImage src={nextAppointment.profiles?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-primary/20 text-primary text-xl font-bold">
+                    {nextAppointment.profiles?.full_name?.charAt(0) || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                {isBirthday(nextAppointment.profiles?.birth_date) && (
+                  <div className="absolute -top-1 -right-1 bg-pink-500 rounded-full p-1 animate-bounce">
+                    <Cake className="h-4 w-4 text-white" />
+                  </div>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide">Próximo cliente</span>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs font-medium text-primary">
+                    {format(new Date(nextAppointment.scheduled_at), "HH:mm")}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <h3 className="font-display font-bold text-lg truncate">
+                    {nextAppointment.profiles?.full_name || "Cliente"}
+                  </h3>
+                  {isBirthday(nextAppointment.profiles?.birth_date) && (
+                    <Badge className="bg-pink-500 text-white border-0 animate-pulse">
+                      🎂 Aniversário!
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  {nextAppointment.order_items.map((item, idx) => (
+                    <Badge key={item.id} variant="secondary" className="text-xs">
+                      <Scissors className="h-3 w-3 mr-1" />
+                      {item.services?.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price */}
+              <div className="text-right">
+                <div className="text-2xl font-bold text-primary">
+                  R$ {(nextAppointment.total_price || 0).toFixed(0)}
+                </div>
+                <Badge className={cn("mt-1", statusConfig[nextAppointment.status].bgColor, statusConfig[nextAppointment.status].color)}>
+                  {statusConfig[nextAppointment.status].label}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* Header with navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
