@@ -418,18 +418,20 @@ export function AgendaTab() {
   const pendingCount = allOrders?.filter(o => ["pending", "confirmed", "in_progress"].includes(o.status)).length || 0;
   const completedCount = allOrders?.filter(o => o.status === "completed").length || 0;
 
-  // Get next upcoming appointment (only for today)
+  // Get next upcoming appointment for the selected day
   const nextAppointment = useMemo(() => {
-    if (!isToday(selectedDate) || !allOrders) return null;
-    
-    const now = new Date();
+    if (!allOrders) return null;
+
+    const referenceTime = isToday(selectedDate) ? new Date() : startOfDay(selectedDate);
+
     const upcoming = allOrders
-      .filter(o => 
-        new Date(o.scheduled_at) >= now && 
-        !["completed", "cancelled"].includes(o.status)
+      .filter(
+        (o) =>
+          new Date(o.scheduled_at) >= referenceTime &&
+          !["completed", "cancelled"].includes(o.status),
       )
       .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-    
+
     return upcoming[0] || null;
   }, [allOrders, selectedDate]);
 
@@ -472,7 +474,11 @@ export function AgendaTab() {
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleConfirmAction}
-              className={confirmAction?.type === "complete" ? "bg-green-600 hover:bg-green-700" : "bg-destructive hover:bg-destructive/90"}
+              className={
+                confirmAction?.type === "complete"
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              }
             >
               {confirmAction?.type === "complete" ? "Sim, finalizar" : "Sim, cancelar"}
             </AlertDialogAction>
@@ -481,17 +487,19 @@ export function AgendaTab() {
       </AlertDialog>
 
       {/* Next Client Card - Always visible */}
-      <Card className={cn(
-        "overflow-hidden border-2",
-        nextAppointment && isBirthday(nextAppointment.profiles?.birth_date) 
-          ? "border-pink-500 bg-gradient-to-r from-pink-500/10 to-purple-500/10" 
-          : nextAppointment 
-            ? "border-primary/50 bg-primary/5"
-            : "border-muted bg-muted/5"
-      )}>
+      <Card
+        className={cn(
+          "border-2 overflow-visible",
+          nextAppointment && isBirthday(nextAppointment.profiles?.birth_date)
+            ? "border-pink-500 bg-gradient-to-r from-pink-500/10 to-purple-500/10"
+            : nextAppointment
+              ? "border-primary/50 bg-primary/5"
+              : "border-muted bg-muted/5",
+        )}
+      >
         <CardContent className="p-4">
           {nextAppointment ? (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               {/* Avatar */}
               <div className="relative">
                 <Avatar className="h-16 w-16 border-2 border-primary">
@@ -512,19 +520,13 @@ export function AgendaTab() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs text-muted-foreground uppercase tracking-wide">Próximo cliente</span>
                   <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs font-medium text-primary">
-                    {format(new Date(nextAppointment.scheduled_at), "HH:mm")}
-                  </span>
+                  <span className="text-xs font-medium text-primary">{format(new Date(nextAppointment.scheduled_at), "HH:mm")}</span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
-                  <h3 className="font-display font-bold text-lg truncate">
-                    {nextAppointment.profiles?.full_name || "Cliente"}
-                  </h3>
+                  <h3 className="font-display font-bold text-lg truncate">{nextAppointment.profiles?.full_name || "Cliente"}</h3>
                   {isBirthday(nextAppointment.profiles?.birth_date) && (
-                    <Badge className="bg-pink-500 text-white border-0 animate-pulse">
-                      🎂 Aniversário!
-                    </Badge>
+                    <Badge className="bg-pink-500 text-white border-0 animate-pulse">🎂 Aniversário!</Badge>
                   )}
                 </div>
 
@@ -539,20 +541,19 @@ export function AgendaTab() {
               </div>
 
               {/* Price & Actions */}
-              <div className="flex flex-col items-end gap-2">
-                <div className="text-2xl font-bold text-primary">
-                  R$ {(nextAppointment.total_price || 0).toFixed(0)}
-                </div>
-                <div className="flex gap-2">
+              <div className="flex w-full flex-row items-center justify-between gap-2 sm:w-auto sm:flex-col sm:items-end">
+                <div className="text-2xl font-bold text-primary">R$ {(nextAppointment.total_price || 0).toFixed(0)}</div>
+
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
                     onClick={() => setConfirmAction({ type: "complete", orderId: nextAppointment.id })}
                     disabled={updateStatusMutation.isPending}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    Finalizar
+                    Finalizar tudo
                   </Button>
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="sm" variant="destructive" disabled={updateStatusMutation.isPending}>
@@ -561,13 +562,37 @@ export function AgendaTab() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setConfirmAction({ type: "cancel", orderId: nextAppointment.id, cancelReason: "Cliente cancelou" })}>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setConfirmAction({
+                            type: "cancel",
+                            orderId: nextAppointment.id,
+                            cancelReason: "Cliente cancelou",
+                          })
+                        }
+                      >
                         Cliente cancelou
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setConfirmAction({ type: "cancel", orderId: nextAppointment.id, cancelReason: "Cliente não veio" })}>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setConfirmAction({
+                            type: "cancel",
+                            orderId: nextAppointment.id,
+                            cancelReason: "Cliente não veio",
+                          })
+                        }
+                      >
                         Cliente não veio
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setConfirmAction({ type: "cancel", orderId: nextAppointment.id, cancelReason: "Cancelado pelo barbeiro" })}>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setConfirmAction({
+                            type: "cancel",
+                            orderId: nextAppointment.id,
+                            cancelReason: "Cancelado pelo barbeiro",
+                          })
+                        }
+                      >
                         Cancelado pelo barbeiro
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -583,10 +608,7 @@ export function AgendaTab() {
               <div className="flex-1">
                 <span className="text-xs text-muted-foreground uppercase tracking-wide">Próximo cliente</span>
                 <p className="text-muted-foreground font-medium mt-1">
-                  {isToday(selectedDate) 
-                    ? "Nenhum agendamento pendente para hoje" 
-                    : "Selecione o dia de hoje para ver o próximo cliente"
-                  }
+                  Nenhum agendamento pendente para este dia
                 </p>
               </div>
             </div>
