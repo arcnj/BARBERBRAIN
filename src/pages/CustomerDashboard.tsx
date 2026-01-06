@@ -749,8 +749,11 @@ export default function CustomerDashboard() {
                       <Card key={order.id} className="glass border-border/50">
                         <CardHeader className="pb-2">
                           <div className="flex items-center justify-between">
-                            <CardTitle className="text-base">
-                              Agendamento #{order.id.slice(0, 8)}
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Scissors className="h-4 w-4 text-primary" />
+                              {order.order_items.length === 1 
+                                ? order.order_items[0].service.name 
+                                : `${order.order_items.length} serviços`}
                             </CardTitle>
                             <Badge variant={statusMap[order.status]?.variant || "secondary"}>
                               {statusMap[order.status]?.label || order.status}
