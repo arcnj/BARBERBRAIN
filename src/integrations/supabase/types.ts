@@ -54,25 +54,88 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          friday_close: string | null
+          friday_closed: boolean | null
+          friday_open: string | null
           id: string
+          monday_close: string | null
+          monday_closed: boolean | null
+          monday_open: string | null
           name: string | null
+          saturday_close: string | null
+          saturday_closed: boolean | null
+          saturday_open: string | null
+          sunday_close: string | null
+          sunday_closed: boolean | null
+          sunday_open: string | null
+          thursday_close: string | null
+          thursday_closed: boolean | null
+          thursday_open: string | null
+          tuesday_close: string | null
+          tuesday_closed: boolean | null
+          tuesday_open: string | null
           updated_at: string
+          wednesday_close: string | null
+          wednesday_closed: boolean | null
+          wednesday_open: string | null
           whatsapp_phone: string | null
         }
         Insert: {
           address?: string | null
           created_at?: string
+          friday_close?: string | null
+          friday_closed?: boolean | null
+          friday_open?: string | null
           id?: string
+          monday_close?: string | null
+          monday_closed?: boolean | null
+          monday_open?: string | null
           name?: string | null
+          saturday_close?: string | null
+          saturday_closed?: boolean | null
+          saturday_open?: string | null
+          sunday_close?: string | null
+          sunday_closed?: boolean | null
+          sunday_open?: string | null
+          thursday_close?: string | null
+          thursday_closed?: boolean | null
+          thursday_open?: string | null
+          tuesday_close?: string | null
+          tuesday_closed?: boolean | null
+          tuesday_open?: string | null
           updated_at?: string
+          wednesday_close?: string | null
+          wednesday_closed?: boolean | null
+          wednesday_open?: string | null
           whatsapp_phone?: string | null
         }
         Update: {
           address?: string | null
           created_at?: string
+          friday_close?: string | null
+          friday_closed?: boolean | null
+          friday_open?: string | null
           id?: string
+          monday_close?: string | null
+          monday_closed?: boolean | null
+          monday_open?: string | null
           name?: string | null
+          saturday_close?: string | null
+          saturday_closed?: boolean | null
+          saturday_open?: string | null
+          sunday_close?: string | null
+          sunday_closed?: boolean | null
+          sunday_open?: string | null
+          thursday_close?: string | null
+          thursday_closed?: boolean | null
+          thursday_open?: string | null
+          tuesday_close?: string | null
+          tuesday_closed?: boolean | null
+          tuesday_open?: string | null
           updated_at?: string
+          wednesday_close?: string | null
+          wednesday_closed?: boolean | null
+          wednesday_open?: string | null
           whatsapp_phone?: string | null
         }
         Relationships: []
