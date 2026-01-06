@@ -16,11 +16,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift, Cake, Percent, BadgeDollarSign } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift, Cake, Percent, BadgeDollarSign, MessageCircle } from "lucide-react";
+
+// Barbershop WhatsApp number - can be configured
+const BARBERSHOP_WHATSAPP = "5511999999999"; // TODO: Get from settings
 
 interface Service {
   id: string;
@@ -94,6 +104,14 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [appointmentDetails, setAppointmentDetails] = useState<{
+    date: string;
+    time: string;
+    services: string[];
+    barber: string;
+    total: number;
+  } | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -393,10 +411,24 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
           .eq("id", birthdayCoupon.id);
       }
 
-      toast({
-        title: "Agendamento confirmado!",
-        description: `Seu horário foi marcado para ${format(scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+      // Get barber name for the message
+      const selectedBarberName = barbers.find(b => b.id === preferredBarber)?.name || "Barbeiro";
+      const serviceNames = selectedServices.map(sid => {
+        const service = services.find(s => s.id === sid);
+        return service?.name || "";
+      }).filter(Boolean);
+
+      // Save appointment details for WhatsApp message
+      setAppointmentDetails({
+        date: format(scheduledAt, "dd/MM/yyyy", { locale: ptBR }),
+        time: format(scheduledAt, "HH:mm"),
+        services: serviceNames,
+        barber: selectedBarberName,
+        total: totalPrice,
       });
+
+      // Show success dialog with WhatsApp option
+      setShowSuccessDialog(true);
 
       // Reset form
       setSelectedServices([]);
@@ -825,6 +857,62 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
           </CardContent>
         </Card>
       )}
+      {/* Success Dialog with WhatsApp option */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <Check className="h-5 w-5" />
+              Agendamento Confirmado!
+            </DialogTitle>
+            <DialogDescription>
+              Seu horário foi marcado com sucesso.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {appointmentDetails && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                <p className="text-sm">
+                  <span className="font-medium">📅 Data:</span> {appointmentDetails.date} às {appointmentDetails.time}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">✂️ Serviços:</span> {appointmentDetails.services.join(", ")}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">💈 Barbeiro:</span> {appointmentDetails.barber}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">💰 Total:</span> R$ {appointmentDetails.total.toFixed(2)}
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => {
+                    const message = `Olá! 👋\n\nAcabei de fazer um agendamento:\n\n📅 *Data:* ${appointmentDetails.date} às ${appointmentDetails.time}\n✂️ *Serviços:* ${appointmentDetails.services.join(", ")}\n💈 *Barbeiro:* ${appointmentDetails.barber}\n💰 *Total:* R$ ${appointmentDetails.total.toFixed(2)}\n\nAguardo confirmação! 😊`;
+                    const whatsappUrl = `https://wa.me/${BARBERSHOP_WHATSAPP}?text=${encodeURIComponent(message)}`;
+                    window.open(whatsappUrl, "_blank");
+                    setShowSuccessDialog(false);
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Enviar para WhatsApp da Barbearia
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowSuccessDialog(false)}
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
