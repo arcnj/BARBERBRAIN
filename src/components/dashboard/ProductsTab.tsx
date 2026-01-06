@@ -31,6 +31,7 @@ interface Product {
   image_url: string | null;
   active: boolean;
   category: string;
+  stock_quantity: number | null;
 }
 
 export function ProductsTab() {
@@ -48,6 +49,7 @@ export function ProductsTab() {
     image_url: "",
     active: true,
     category: "Geral",
+    stock_quantity: "" as string,
   });
 
   // Get unique categories from products
@@ -139,6 +141,7 @@ export function ProductsTab() {
         image_url: formData.image_url || null,
         active: formData.active,
         category: finalCategory,
+        stock_quantity: formData.stock_quantity === "" ? null : parseInt(formData.stock_quantity),
       };
 
       if (editingProduct) {
@@ -174,6 +177,7 @@ export function ProductsTab() {
       image_url: product.image_url || "",
       active: product.active,
       category: product.category || "Geral",
+      stock_quantity: product.stock_quantity !== null ? product.stock_quantity.toString() : "",
     });
     setShowNewCategoryInput(false);
     setDialogOpen(true);
@@ -215,6 +219,7 @@ export function ProductsTab() {
       image_url: "",
       active: true,
       category: "Geral",
+      stock_quantity: "",
     });
     setEditingProduct(null);
     setNewCategory("");
@@ -362,17 +367,30 @@ export function ProductsTab() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="price">Preço (R$) *</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="0.00"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="price">Preço (R$) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stock">Estoque</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    min="0"
+                    value={formData.stock_quantity}
+                    onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                    placeholder="Ilimitado"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-between">
@@ -432,7 +450,14 @@ export function ProductsTab() {
                     </div>
                     <CardContent className="p-3">
                       <h3 className="font-medium text-foreground truncate">{product.name}</h3>
-                      <p className="text-primary font-bold">R$ {Number(product.price).toFixed(2)}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-primary font-bold">R$ {Number(product.price).toFixed(2)}</p>
+                        {product.stock_quantity !== null && (
+                          <span className={`text-xs font-medium ${product.stock_quantity === 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {product.stock_quantity === 0 ? 'Sem estoque' : `${product.stock_quantity} un.`}
+                          </span>
+                        )}
+                      </div>
                       
                       <div className="flex items-center gap-1 mt-3">
                         <Button
