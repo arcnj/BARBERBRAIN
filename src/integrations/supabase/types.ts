@@ -58,6 +58,7 @@ export type Database = {
           friday_closed: boolean | null
           friday_open: string | null
           id: string
+          logo_url: string | null
           monday_close: string | null
           monday_closed: boolean | null
           monday_open: string | null
@@ -87,6 +88,7 @@ export type Database = {
           friday_closed?: boolean | null
           friday_open?: string | null
           id?: string
+          logo_url?: string | null
           monday_close?: string | null
           monday_closed?: boolean | null
           monday_open?: string | null
@@ -116,6 +118,7 @@ export type Database = {
           friday_closed?: boolean | null
           friday_open?: string | null
           id?: string
+          logo_url?: string | null
           monday_close?: string | null
           monday_closed?: boolean | null
           monday_open?: string | null
