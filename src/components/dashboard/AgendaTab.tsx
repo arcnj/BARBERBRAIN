@@ -10,6 +10,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -490,14 +491,41 @@ export function AgendaTab() {
                 </div>
               </div>
 
-              {/* Price */}
-              <div className="text-right">
+              {/* Price & Actions */}
+              <div className="flex flex-col items-end gap-2">
                 <div className="text-2xl font-bold text-primary">
                   R$ {(nextAppointment.total_price || 0).toFixed(0)}
                 </div>
-                <Badge className={cn("mt-1", statusConfig[nextAppointment.status].bgColor, statusConfig[nextAppointment.status].color)}>
-                  {statusConfig[nextAppointment.status].label}
-                </Badge>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="success"
+                    onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "completed" })}
+                    disabled={updateStatusMutation.isPending}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Finalizar
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="destructive" disabled={updateStatusMutation.isPending}>
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Cancelar
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "cancelled" })}>
+                        Cliente cancelou
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "cancelled" })}>
+                        Cliente não veio
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "cancelled" })}>
+                        Cancelado pelo barbeiro
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           </CardContent>
