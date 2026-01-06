@@ -1,0 +1,23 @@
+-- Add business hours columns to barbershop_settings
+ALTER TABLE public.barbershop_settings
+ADD COLUMN monday_open time DEFAULT '09:00',
+ADD COLUMN monday_close time DEFAULT '18:00',
+ADD COLUMN monday_closed boolean DEFAULT false,
+ADD COLUMN tuesday_open time DEFAULT '09:00',
+ADD COLUMN tuesday_close time DEFAULT '18:00',
+ADD COLUMN tuesday_closed boolean DEFAULT false,
+ADD COLUMN wednesday_open time DEFAULT '09:00',
+ADD COLUMN wednesday_close time DEFAULT '18:00',
+ADD COLUMN wednesday_closed boolean DEFAULT false,
+ADD COLUMN thursday_open time DEFAULT '09:00',
+ADD COLUMN thursday_close time DEFAULT '18:00',
+ADD COLUMN thursday_closed boolean DEFAULT false,
+ADD COLUMN friday_open time DEFAULT '09:00',
+ADD COLUMN friday_close time DEFAULT '18:00',
+ADD COLUMN friday_closed boolean DEFAULT false,
+ADD COLUMN saturday_open time DEFAULT '09:00',
+ADD COLUMN saturday_close time DEFAULT '14:00',
+ADD COLUMN saturday_closed boolean DEFAULT false,
+ADD COLUMN sunday_open time DEFAULT NULL,
+ADD COLUMN sunday_close time DEFAULT NULL,
+ADD COLUMN sunday_closed boolean DEFAULT true;
