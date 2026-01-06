@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package, RefreshCcw, Loader2 } from "lucide-react";
+import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package, RefreshCcw, Loader2, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 
@@ -261,6 +261,33 @@ export function AgendaTab() {
     },
     onError: () => {
       toast.error("Erro ao atualizar status");
+    },
+  });
+
+  // Complete all pending orders mutation
+  const completeAllMutation = useMutation({
+    mutationFn: async () => {
+      const ordersToComplete = pendingOrders.filter(o => o.status !== "cancelled");
+      
+      if (ordersToComplete.length === 0) {
+        throw new Error("Nenhum agendamento para finalizar");
+      }
+
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "completed" as OrderStatus })
+        .in("id", ordersToComplete.map(o => o.id));
+
+      if (error) throw error;
+      
+      return ordersToComplete.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
+      toast.success(`${count} agendamento${count !== 1 ? "s" : ""} finalizado${count !== 1 ? "s" : ""}!`);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erro ao finalizar agendamentos");
     },
   });
 
@@ -625,20 +652,45 @@ export function AgendaTab() {
 
       {/* Tabs for different statuses */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="pending" className="gap-2">
-            <AlertCircle className="h-4 w-4" />
-            Pendentes ({pendingOrders.length})
-          </TabsTrigger>
-          <TabsTrigger value="completed" className="gap-2">
-            <CheckCircle className="h-4 w-4" />
-            Finalizados ({completedOrders.length})
-          </TabsTrigger>
-          <TabsTrigger value="cancelled" className="gap-2">
-            <XCircle className="h-4 w-4" />
-            Cancelados ({cancelledOrders.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
+          <TabsList className="grid w-full sm:w-auto grid-cols-3">
+            <TabsTrigger value="pending" className="gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Pendentes ({pendingOrders.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed" className="gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Finalizados ({completedOrders.length})
+            </TabsTrigger>
+            <TabsTrigger value="cancelled" className="gap-2">
+              <XCircle className="h-4 w-4" />
+              Cancelados ({cancelledOrders.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Complete All Button - only show in pending tab when there are pending orders */}
+          {activeTab === "pending" && pendingOrders.length > 0 && (
+            <Button
+              variant="success"
+              size="sm"
+              onClick={() => completeAllMutation.mutate()}
+              disabled={completeAllMutation.isPending}
+              className="gap-2"
+            >
+              {completeAllMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Finalizando...
+                </>
+              ) : (
+                <>
+                  <CheckCheck className="h-4 w-4" />
+                  Finalizar Todos ({pendingOrders.length})
+                </>
+              )}
+            </Button>
+          )}
+        </div>
 
         <TabsContent value={activeTab} className="mt-4">
           {/* Appointments list */}
