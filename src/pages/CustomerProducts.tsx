@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Helmet } from "react-helmet";
-import { ArrowLeft, Loader2, Package, Check, Flame, ShoppingBag, Filter, X } from "lucide-react";
+import { ArrowLeft, Loader2, Package, Check, Flame, ShoppingBag, Filter, X, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Product {
@@ -21,6 +21,7 @@ interface Product {
   price: number;
   image_url: string | null;
   category: string | null;
+  stock_quantity: number | null;
   total_sold?: number;
 }
 
@@ -93,7 +94,7 @@ export default function CustomerProducts() {
     try {
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, name, description, price, image_url, category")
+        .select("id, name, description, price, image_url, category, stock_quantity")
         .eq("active", true)
         .order("name");
 
@@ -446,14 +447,19 @@ export default function CustomerProducts() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {filteredProducts.map((product) => {
+                {filteredProducts.map((product) => {
                     const selected = isProductSelected(product.id);
                     const isBestSeller = product.id === bestSellerId;
+                    const isOutOfStock = product.stock_quantity === 0;
                     return (
                       <Card
                         key={product.id}
                         className={`glass overflow-hidden rounded-2xl transition-colors ${
-                          selected ? "border-primary bg-primary/5" : "border-border/50 hover:border-primary/50"
+                          isOutOfStock 
+                            ? "opacity-70 border-border/30" 
+                            : selected 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border/50 hover:border-primary/50"
                         }`}
                       >
                         <div className="aspect-square bg-muted/50 flex items-center justify-center overflow-hidden relative">
@@ -461,12 +467,20 @@ export default function CustomerProducts() {
                             <img
                               src={product.image_url}
                               alt={product.name}
-                              className="w-full h-full object-cover"
+                              className={`w-full h-full object-cover ${isOutOfStock ? "grayscale" : ""}`}
                             />
                           ) : (
                             <Package className="h-8 w-8 text-muted-foreground" />
                           )}
-                          {isBestSeller && (
+                          {isOutOfStock && (
+                            <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                              <Badge variant="destructive" className="text-xs px-2 py-1 gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Indisponível
+                              </Badge>
+                            </div>
+                          )}
+                          {!isOutOfStock && isBestSeller && (
                             <div className="absolute top-2 left-2">
                               <Badge variant="destructive" className="text-xs px-2 py-0.5 gap-1">
                                 <Flame className="h-3 w-3" />
@@ -474,7 +488,7 @@ export default function CustomerProducts() {
                               </Badge>
                             </div>
                           )}
-                          {selected && (
+                          {selected && !isOutOfStock && (
                             <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
                               <Check className="h-4 w-4 text-primary-foreground" />
                             </div>
@@ -485,14 +499,22 @@ export default function CustomerProducts() {
                           {product.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>
                           )}
-                          <p className="text-primary font-bold text-sm">R$ {Number(product.price).toFixed(2)}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-primary font-bold text-sm">R$ {Number(product.price).toFixed(2)}</p>
+                            {product.stock_quantity !== null && product.stock_quantity > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {product.stock_quantity} em estoque
+                              </span>
+                            )}
+                          </div>
                           <Button
                             size="sm"
                             variant={selected ? "secondary" : "default"}
                             className="w-full"
                             onClick={() => toggleProduct(product)}
+                            disabled={isOutOfStock}
                           >
-                            {selected ? "Remover" : "Adicionar"}
+                            {isOutOfStock ? "Indisponível" : selected ? "Remover" : "Adicionar"}
                           </Button>
                         </CardContent>
                       </Card>
