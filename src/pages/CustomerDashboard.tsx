@@ -484,14 +484,7 @@ export default function CustomerDashboard() {
         {/* Header */}
         <header className="sticky top-0 z-50 glass border-b border-border/50">
           <div className="container flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10">
-                <Scissors className="h-5 w-5 text-primary" />
-              </div>
-              <span className="font-heading text-xl font-bold text-foreground">
-                Barber<span className="text-primary">Brain</span>
-              </span>
-            </div>
+            <BarbershopHeader />
 
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-5 w-5" />
@@ -500,9 +493,6 @@ export default function CustomerDashboard() {
         </header>
 
         <main className="container py-6 pb-24">
-          {/* Barbershop Header with Logo and Hours */}
-          <BarbershopHeader />
-
           {/* Welcome Section */}
           <div className="mb-6">
             <h1 className="font-heading text-2xl font-bold text-foreground mb-2">

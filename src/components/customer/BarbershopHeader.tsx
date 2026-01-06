@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, MapPin } from "lucide-react";
+import { Clock } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Store } from "lucide-react";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, Store } from "lucide-react";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface BarbershopSettings {
   name: string | null;
@@ -52,7 +51,6 @@ const DAY_KEYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "frida
 
 export function BarbershopHeader() {
   const [settings, setSettings] = useState<BarbershopSettings | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -105,86 +103,82 @@ export function BarbershopHeader() {
            currentTime < schedule.close.substring(0, 5);
   };
 
-  if (loading || !settings) return null;
+  if (loading || !settings) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="h-10 w-10 rounded-lg bg-muted animate-pulse" />
+        <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+      </div>
+    );
+  }
 
   const todaySchedule = getTodaySchedule();
   const openNow = isCurrentlyOpen();
 
   return (
-    <div className="mb-6 p-4 rounded-xl bg-card border border-border/50">
-      <div className="flex items-center gap-4">
-        <Avatar className="h-16 w-16 rounded-xl">
-          <AvatarImage src={settings.logo_url || undefined} alt={settings.name || "Barbearia"} />
-          <AvatarFallback className="rounded-xl bg-primary/10">
-            <Store className="h-8 w-8 text-primary" />
-          </AvatarFallback>
-        </Avatar>
-        
-        <div className="flex-1 min-w-0">
-          <h2 className="font-heading text-xl font-bold text-foreground truncate">
-            {settings.name || "Barbearia"}
-          </h2>
-          
-          {settings.address && (
-            <p className="text-sm text-muted-foreground flex items-center gap-1 truncate">
-              <MapPin className="h-3 w-3 flex-shrink-0" />
-              {settings.address}
-            </p>
+    <div className="flex items-center gap-3">
+      <Avatar className="h-10 w-10 rounded-lg">
+        <AvatarImage src={settings.logo_url || undefined} alt={settings.name || "Barbearia"} />
+        <AvatarFallback className="rounded-lg bg-primary/10">
+          <Store className="h-5 w-5 text-primary" />
+        </AvatarFallback>
+      </Avatar>
+      
+      <div className="hidden sm:block">
+        <p className="font-heading text-sm font-semibold text-foreground leading-tight">
+          {settings.name || "Barbearia"}
+        </p>
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className={`flex items-center gap-1 ${openNow ? "text-green-500" : "text-muted-foreground"}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${openNow ? "bg-green-500" : "bg-muted-foreground"}`} />
+            {openNow ? "Aberto" : "Fechado"}
+          </span>
+          {todaySchedule && !todaySchedule.closed && (
+            <span className="text-muted-foreground">
+              · {formatTime(todaySchedule.open)} - {formatTime(todaySchedule.close)}
+            </span>
           )}
-          
-          <div className="flex items-center gap-2 mt-1">
-            <Badge 
-              variant={openNow ? "default" : "secondary"}
-              className={openNow ? "bg-green-500/90 hover:bg-green-500" : ""}
-            >
-              {openNow ? "Aberto agora" : "Fechado"}
-            </Badge>
-            
-            {todaySchedule && !todaySchedule.closed && (
-              <span className="text-xs text-muted-foreground">
-                {formatTime(todaySchedule.open)} - {formatTime(todaySchedule.close)}
-              </span>
-            )}
-          </div>
         </div>
       </div>
 
-      <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mt-3">
-        <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors">
-          <Clock className="h-4 w-4" />
-          <span>Ver horários de funcionamento</span>
-          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </CollapsibleTrigger>
-        
-        <CollapsibleContent className="mt-3">
-          <div className="grid grid-cols-1 gap-1 text-sm">
-            {DAY_KEYS.map((dayKey) => {
-              const isClosed = settings[`${dayKey}_closed` as keyof BarbershopSettings] as boolean | null;
-              const openTime = settings[`${dayKey}_open` as keyof BarbershopSettings] as string | null;
-              const closeTime = settings[`${dayKey}_close` as keyof BarbershopSettings] as string | null;
-              const today = new Date().getDay();
-              const isToday = DAYS_MAP[dayKey].index === today;
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="p-1.5 rounded-md hover:bg-accent transition-colors">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 p-3">
+          <div className="space-y-2">
+            <h4 className="font-medium text-sm text-foreground">Horários de funcionamento</h4>
+            <div className="grid grid-cols-1 gap-1 text-sm">
+              {DAY_KEYS.map((dayKey) => {
+                const isClosed = settings[`${dayKey}_closed` as keyof BarbershopSettings] as boolean | null;
+                const openTime = settings[`${dayKey}_open` as keyof BarbershopSettings] as string | null;
+                const closeTime = settings[`${dayKey}_close` as keyof BarbershopSettings] as string | null;
+                const today = new Date().getDay();
+                const isToday = DAYS_MAP[dayKey].index === today;
 
-              return (
-                <div 
-                  key={dayKey}
-                  className={`flex justify-between py-1.5 px-2 rounded ${
-                    isToday ? "bg-primary/10 font-medium" : ""
-                  }`}
-                >
-                  <span className="text-foreground">
-                    {DAYS_MAP[dayKey].label}
-                    {isToday && <span className="text-primary ml-1">(Hoje)</span>}
-                  </span>
-                  <span className={isClosed ? "text-destructive" : "text-muted-foreground"}>
-                    {isClosed ? "Fechado" : `${formatTime(openTime)} - ${formatTime(closeTime)}`}
-                  </span>
-                </div>
-              );
-            })}
+                return (
+                  <div 
+                    key={dayKey}
+                    className={`flex justify-between py-1 px-1.5 rounded text-xs ${
+                      isToday ? "bg-primary/10 font-medium" : ""
+                    }`}
+                  >
+                    <span className="text-foreground">
+                      {DAYS_MAP[dayKey].label}
+                      {isToday && <span className="text-primary ml-1">(Hoje)</span>}
+                    </span>
+                    <span className={isClosed ? "text-destructive" : "text-muted-foreground"}>
+                      {isClosed ? "Fechado" : `${formatTime(openTime)} - ${formatTime(closeTime)}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
