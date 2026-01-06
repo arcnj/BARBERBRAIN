@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,16 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays } from "date-fns";
+import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays, setHours, setMinutes, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Package, RefreshCcw, Loader2, CheckCheck } from "lucide-react";
+import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
-type TabType = "pending" | "completed" | "cancelled";
 
 interface Order {
   id: string;
@@ -56,19 +55,31 @@ interface Order {
   }[];
 }
 
-const statusConfig: Record<OrderStatus, { label: string; color: string; icon: typeof CheckCircle }> = {
-  pending: { label: "Pendente", color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/50", icon: AlertCircle },
-  confirmed: { label: "Confirmado", color: "bg-blue-500/20 text-blue-400 border-blue-500/50", icon: CheckCircle },
-  in_progress: { label: "Em Andamento", color: "bg-primary/20 text-primary border-primary/50", icon: Clock },
-  completed: { label: "Concluído", color: "bg-green-500/20 text-green-400 border-green-500/50", icon: CheckCircle },
-  cancelled: { label: "Cancelado", color: "bg-red-500/20 text-red-400 border-red-500/50", icon: XCircle },
+const statusConfig: Record<OrderStatus, { label: string; color: string; bgColor: string; icon: typeof CheckCircle }> = {
+  pending: { label: "Pendente", color: "text-yellow-400", bgColor: "bg-yellow-500/20 border-yellow-500/50", icon: AlertCircle },
+  confirmed: { label: "Confirmado", color: "text-blue-400", bgColor: "bg-blue-500/20 border-blue-500/50", icon: CheckCircle },
+  in_progress: { label: "Em Andamento", color: "text-primary", bgColor: "bg-primary/20 border-primary/50", icon: Clock },
+  completed: { label: "Concluído", color: "text-green-400", bgColor: "bg-green-500/20 border-green-500/50", icon: CheckCircle },
+  cancelled: { label: "Cancelado", color: "text-red-400", bgColor: "bg-red-500/20 border-red-500/50", icon: XCircle },
 };
+
+// Generate time slots from 7:00 to 21:00
+const generateTimeSlots = () => {
+  const slots = [];
+  for (let hour = 7; hour <= 21; hour++) {
+    slots.push({ hour, minute: 0, label: `${hour.toString().padStart(2, '0')}:00` });
+    slots.push({ hour, minute: 30, label: `${hour.toString().padStart(2, '0')}:30` });
+  }
+  return slots;
+};
+
+const TIME_SLOTS = generateTimeSlots();
 
 export function AgendaTab() {
   const { user, role } = useAuth();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [activeTab, setActiveTab] = useState<TabType>("pending");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [newAppointment, setNewAppointment] = useState({
     customerName: "",
     customerPhone: "",
@@ -84,7 +95,6 @@ export function AgendaTab() {
   const [isSearchingPhone, setIsSearchingPhone] = useState(false);
 
   const queryClient = useQueryClient();
-
   const isAdmin = role === "admin";
 
   // Fetch barber ID for current user (if they are a barber)
@@ -106,12 +116,11 @@ export function AgendaTab() {
 
   const barberId = currentBarber?.id;
 
-  // Fetch orders for selected date - filtered by barber if not admin
+  // Fetch orders for selected date
   const {
     data: allOrders,
     isLoading,
     isFetching,
-    isError,
     refetch,
   } = useQuery({
     queryKey: ["agenda-orders", format(selectedDate, "yyyy-MM-dd"), barberId, isAdmin],
@@ -157,7 +166,6 @@ export function AgendaTab() {
         .lte("scheduled_at", endDate)
         .order("scheduled_at", { ascending: true });
 
-      // If barber (not admin), filter by their barber_id or preferred_barber_id
       if (!isAdmin && barberId) {
         query = query.or(`barber_id.eq.${barberId},preferred_barber_id.eq.${barberId}`);
       }
@@ -173,23 +181,26 @@ export function AgendaTab() {
     enabled: isAdmin || !!barberId,
   });
 
-  // Filter orders by tab
-  const pendingStatuses: OrderStatus[] = ["pending", "confirmed", "in_progress"];
-  const pendingOrders = allOrders?.filter(o => pendingStatuses.includes(o.status)) || [];
-  const completedOrders = allOrders?.filter(o => o.status === "completed") || [];
-  const cancelledOrders = allOrders?.filter(o => o.status === "cancelled") || [];
+  // Group orders by time slot
+  const ordersBySlot = useMemo(() => {
+    const grouped: Record<string, Order[]> = {};
+    
+    allOrders?.forEach(order => {
+      const orderDate = new Date(order.scheduled_at);
+      const hour = orderDate.getHours();
+      const minute = orderDate.getMinutes() >= 30 ? 30 : 0;
+      const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      
+      if (!grouped[slotKey]) {
+        grouped[slotKey] = [];
+      }
+      grouped[slotKey].push(order);
+    });
+    
+    return grouped;
+  }, [allOrders]);
 
-  const getOrdersForTab = () => {
-    switch (activeTab) {
-      case "pending": return pendingOrders;
-      case "completed": return completedOrders;
-      case "cancelled": return cancelledOrders;
-    }
-  };
-
-  const orders = getOrdersForTab();
-
-  // Fetch services for the new appointment form (only when dialog opens)
+  // Fetch services for the new appointment form
   const { data: services } = useQuery({
     queryKey: ["services-active"],
     queryFn: async () => {
@@ -202,8 +213,8 @@ export function AgendaTab() {
       if (error) throw error;
       return data;
     },
-    staleTime: 60000, // Cache for 1 minute
-    enabled: isDialogOpen, // Only fetch when dialog is open
+    staleTime: 60000,
+    enabled: isDialogOpen,
   });
 
   // Search customer by phone
@@ -258,51 +269,21 @@ export function AgendaTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
       toast.success("Status atualizado!");
+      setSelectedOrder(null);
     },
     onError: () => {
       toast.error("Erro ao atualizar status");
     },
   });
 
-  // Complete all pending orders mutation
-  const completeAllMutation = useMutation({
-    mutationFn: async () => {
-      const ordersToComplete = pendingOrders.filter(o => o.status !== "cancelled");
-      
-      if (ordersToComplete.length === 0) {
-        throw new Error("Nenhum agendamento para finalizar");
-      }
-
-      const { error } = await supabase
-        .from("orders")
-        .update({ status: "completed" as OrderStatus })
-        .in("id", ordersToComplete.map(o => o.id));
-
-      if (error) throw error;
-      
-      return ordersToComplete.length;
-    },
-    onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
-      toast.success(`${count} agendamento${count !== 1 ? "s" : ""} finalizado${count !== 1 ? "s" : ""}!`);
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao finalizar agendamentos");
-    },
-  });
-
-  // Create appointment mutation (for walk-in clients)
+  // Create appointment mutation
   const createAppointmentMutation = useMutation({
     mutationFn: async () => {
       let customerId: string;
       
-      // If customer was found by phone search
       if (newAppointment.customerId) {
         customerId = newAppointment.customerId;
       } else {
-        // Create new customer profile
-        // First, we need to create a user in auth - but since we can't do that directly,
-        // we'll create a profile with a generated user_id for walk-in clients
         const walkInUserId = crypto.randomUUID();
         
         const { error: profileError } = await supabase
@@ -319,7 +300,6 @@ export function AgendaTab() {
           throw profileError;
         }
 
-        // Also create a customer role for this user
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
@@ -329,7 +309,6 @@ export function AgendaTab() {
 
         if (roleError) {
           console.error("Error creating role:", roleError);
-          // Continue anyway, role is not critical for the order
         }
 
         customerId = walkInUserId;
@@ -339,7 +318,6 @@ export function AgendaTab() {
       const service = services?.find(s => s.id === newAppointment.serviceId);
       if (!service) throw new Error("Service not found");
 
-      // Create the order
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -355,7 +333,6 @@ export function AgendaTab() {
 
       if (orderError) throw orderError;
 
-      // Create the order item
       const { error: itemError } = await supabase
         .from("order_items")
         .insert({
@@ -393,12 +370,15 @@ export function AgendaTab() {
     return format(date, "EEEE, d 'de' MMMM", { locale: ptBR });
   };
 
-  const quickDates = [
-    { label: "Hoje", date: new Date() },
-    { label: "Amanhã", date: addDays(new Date(), 1) },
-    { label: format(addDays(new Date(), 2), "EEE", { locale: ptBR }), date: addDays(new Date(), 2) },
-    { label: format(addDays(new Date(), 3), "EEE", { locale: ptBR }), date: addDays(new Date(), 3) },
-  ];
+  const goToPreviousDay = () => setSelectedDate(addDays(selectedDate, -1));
+  const goToNextDay = () => setSelectedDate(addDays(selectedDate, 1));
+  const goToToday = () => setSelectedDate(new Date());
+
+  const handleSlotClick = (hour: number, minute: number) => {
+    const scheduledAt = setMinutes(setHours(selectedDate, hour), minute);
+    setNewAppointment(prev => ({ ...prev, scheduledAt }));
+    setIsDialogOpen(true);
+  };
 
   // If barber but no barber record linked, show message
   if (role === "barber" && !barberId && !loadingBarber && !isAdmin) {
@@ -409,9 +389,6 @@ export function AgendaTab() {
           <h3 className="font-display font-semibold text-foreground">Conta não vinculada</h3>
           <p className="text-muted-foreground">
             Seu usuário ainda não está vinculado a um perfil de barbeiro.
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            Peça ao administrador para criar seu login na aba Barbeiros.
           </p>
         </div>
       </div>
@@ -426,44 +403,26 @@ export function AgendaTab() {
     );
   }
 
+  const pendingCount = allOrders?.filter(o => ["pending", "confirmed", "in_progress"].includes(o.status)).length || 0;
+  const completedCount = allOrders?.filter(o => o.status === "completed").length || 0;
+
   return (
-    <div className="space-y-6">
-      {/* Header with date selection */}
+    <div className="space-y-4">
+      {/* Header with navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold capitalize">{getDateLabel(selectedDate)}</h2>
-          <p className="text-muted-foreground">
-            {pendingOrders.length} pendente{pendingOrders.length !== 1 ? "s" : ""} • {completedOrders.length} finalizado{completedOrders.length !== 1 ? "s" : ""} • {cancelledOrders.length} cancelado{cancelledOrders.length !== 1 ? "s" : ""}
-            {!isAdmin && currentBarber && (
-              <span className="text-primary ml-2">• Sua agenda</span>
-            )}
-          </p>
-        </div>
-
         <div className="flex items-center gap-2">
-          {/* Quick date buttons */}
-          <div className="flex gap-1">
-            {quickDates.map((item, index) => (
-              <Button
-                key={index}
-                variant={format(selectedDate, "yyyy-MM-dd") === format(item.date, "yyyy-MM-dd") ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedDate(item.date)}
-                className="capitalize"
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-
-          {/* Calendar picker */}
+          <Button variant="outline" size="icon" onClick={goToPreviousDay}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="icon">
-                <CalendarIcon className="h-4 w-4" />
+              <Button variant="outline" className="min-w-[200px] justify-center capitalize">
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {getDateLabel(selectedDate)}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
+            <PopoverContent className="w-auto p-0" align="center">
               <Calendar
                 mode="single"
                 selected={selectedDate}
@@ -473,32 +432,36 @@ export function AgendaTab() {
               />
             </PopoverContent>
           </Popover>
-
-          {/* Refresh */}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => refetch()}
-            aria-label="Atualizar agenda"
-          >
-            {isFetching ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCcw className="h-4 w-4" />
-            )}
+          
+          <Button variant="outline" size="icon" onClick={goToNextDay}>
+            <ChevronRight className="h-4 w-4" />
           </Button>
+          
+          {!isToday(selectedDate) && (
+            <Button variant="ghost" size="sm" onClick={goToToday}>
+              Hoje
+            </Button>
+          )}
+        </div>
 
-          {/* Add appointment button */}
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{pendingCount}</span> pendente{pendingCount !== 1 ? "s" : ""} • 
+            <span className="font-medium text-foreground ml-1">{completedCount}</span> finalizado{completedCount !== 1 ? "s" : ""}
+          </div>
+          
+          {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+          
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Encaixar
+                Novo Agendamento
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>Encaixar Cliente</DialogTitle>
+                <DialogTitle>Novo Agendamento</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -541,11 +504,6 @@ export function AgendaTab() {
                       disabled={phoneSearchResult?.found}
                     />
                   </div>
-                  {phoneSearchResult?.found && (
-                    <p className="text-xs text-muted-foreground">
-                      Nome preenchido automaticamente do cadastro
-                    </p>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -641,7 +599,7 @@ export function AgendaTab() {
                       Criando...
                     </>
                   ) : (
-                    "Confirmar Encaixe"
+                    "Confirmar Agendamento"
                   )}
                 </Button>
               </div>
@@ -650,264 +608,222 @@ export function AgendaTab() {
         </div>
       </div>
 
-      {/* Tabs for different statuses */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
-          <TabsList className="grid w-full sm:w-auto grid-cols-3">
-            <TabsTrigger value="pending" className="gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Pendentes ({pendingOrders.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Finalizados ({completedOrders.length})
-            </TabsTrigger>
-            <TabsTrigger value="cancelled" className="gap-2">
-              <XCircle className="h-4 w-4" />
-              Cancelados ({cancelledOrders.length})
-            </TabsTrigger>
-          </TabsList>
+      {/* Calendar Grid */}
+      <Card className="overflow-hidden">
+        <ScrollArea className="h-[calc(100vh-280px)] min-h-[500px]">
+          <div className="divide-y divide-border">
+            {TIME_SLOTS.map((slot) => {
+              const slotKey = slot.label;
+              const slotOrders = ordersBySlot[slotKey] || [];
+              const isCurrentHour = isToday(selectedDate) && 
+                new Date().getHours() === slot.hour && 
+                ((new Date().getMinutes() < 30 && slot.minute === 0) || 
+                 (new Date().getMinutes() >= 30 && slot.minute === 30));
 
-          {/* Complete All Button - only show in pending tab when there are pending orders */}
-          {activeTab === "pending" && pendingOrders.length > 0 && (
-            <Button
-              variant="success"
-              size="sm"
-              onClick={() => completeAllMutation.mutate()}
-              disabled={completeAllMutation.isPending}
-              className="gap-2"
-            >
-              {completeAllMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Finalizando...
-                </>
-              ) : (
-                <>
-                  <CheckCheck className="h-4 w-4" />
-                  Finalizar Todos ({pendingOrders.length})
-                </>
-              )}
-            </Button>
-          )}
-        </div>
+              return (
+                <div
+                  key={slotKey}
+                  className={cn(
+                    "flex min-h-[60px] group",
+                    isCurrentHour && "bg-primary/5"
+                  )}
+                >
+                  {/* Time label */}
+                  <div className={cn(
+                    "w-20 flex-shrink-0 p-2 text-sm font-medium border-r border-border flex items-start justify-end pr-3",
+                    slot.minute === 0 ? "text-foreground" : "text-muted-foreground text-xs",
+                    isCurrentHour && "text-primary"
+                  )}>
+                    {slot.minute === 0 ? slot.label : ""}
+                  </div>
 
-        <TabsContent value={activeTab} className="mt-4">
-          {/* Appointments list */}
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardContent className="p-6">
-                    <div className="h-20 bg-muted rounded" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : isError ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium">Erro ao carregar a agenda</p>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Tente atualizar para buscar os pedidos mais recentes.
-                </p>
-                <Button variant="outline" onClick={() => refetch()} className="gap-2">
-                  <RefreshCcw className="h-4 w-4" />
-                  Atualizar
-                </Button>
-              </CardContent>
-            </Card>
-          ) : orders.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <CalendarIcon className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-medium">
-                  {activeTab === "pending" && "Nenhum agendamento pendente"}
-                  {activeTab === "completed" && "Nenhum atendimento finalizado"}
-                  {activeTab === "cancelled" && "Nenhum agendamento cancelado"}
-                </p>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Não há registros para esta data
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {isToday(selectedDate) && activeTab === "pending" && (
-                    <Button variant="default" onClick={() => setSelectedDate(addDays(new Date(), 1))}>
-                      Ver amanhã
+                  {/* Slot content */}
+                  <div 
+                    className={cn(
+                      "flex-1 p-1 cursor-pointer hover:bg-muted/50 transition-colors relative",
+                      slotOrders.length === 0 && "group-hover:bg-muted/30"
+                    )}
+                    onClick={() => slotOrders.length === 0 && handleSlotClick(slot.hour, slot.minute)}
+                  >
+                    {slotOrders.length === 0 ? (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Plus className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {slotOrders.map((order) => {
+                          const StatusIcon = statusConfig[order.status].icon;
+                          const totalDuration = order.order_items.reduce(
+                            (acc, item) => acc + (item.services?.duration_minutes || 30),
+                            0
+                          );
+                          const serviceName = order.order_items[0]?.services?.name || "Serviço";
+
+                          return (
+                            <div
+                              key={order.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedOrder(order);
+                              }}
+                              className={cn(
+                                "flex-1 min-w-[200px] max-w-full p-2 rounded-md border cursor-pointer transition-all hover:shadow-md",
+                                statusConfig[order.status].bgColor
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <StatusIcon className={cn("h-3 w-3 flex-shrink-0", statusConfig[order.status].color)} />
+                                    <span className="font-medium text-sm truncate">
+                                      {order.profiles?.full_name || "Cliente"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <Scissors className="h-3 w-3" />
+                                      {serviceName}
+                                    </span>
+                                    <span>•</span>
+                                    <span>{totalDuration}min</span>
+                                  </div>
+                                  {order.barbers?.name && isAdmin && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      Barbeiro: {order.barbers.name}
+                                    </div>
+                                  )}
+                                </div>
+                                {order.total_price && (
+                                  <span className="text-sm font-semibold text-primary">
+                                    R$ {order.total_price.toFixed(0)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </Card>
+
+      {/* Order Details Dialog */}
+      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          {selectedOrder && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  {format(new Date(selectedOrder.scheduled_at), "HH:mm")} - {selectedOrder.profiles?.full_name}
+                </DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                {/* Status */}
+                <div className="flex items-center gap-2">
+                  <Badge className={cn("border", statusConfig[selectedOrder.status].bgColor, statusConfig[selectedOrder.status].color)}>
+                    {statusConfig[selectedOrder.status].label}
+                  </Badge>
+                  {selectedOrder.total_price && (
+                    <span className="text-lg font-bold text-primary ml-auto">
+                      R$ {selectedOrder.total_price.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Customer Info */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>{selectedOrder.profiles?.full_name}</span>
+                  </div>
+                  {selectedOrder.profiles?.phone && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span>{selectedOrder.profiles.phone}</span>
+                      <WhatsAppButton 
+                        phone={selectedOrder.profiles.phone} 
+                        name={selectedOrder.profiles.full_name}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Services */}
+                <div className="space-y-2">
+                  <Label>Serviços</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedOrder.order_items.map((item) => (
+                      <Badge key={item.id} variant="secondary">
+                        {item.services?.name} - R$ {item.price.toFixed(2)}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Barber */}
+                {selectedOrder.barbers?.name && (
+                  <div className="space-y-2">
+                    <Label>Barbeiro</Label>
+                    <p className="text-sm">{selectedOrder.barbers.name}</p>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {selectedOrder.notes && (
+                  <div className="space-y-2">
+                    <Label>Observações</Label>
+                    <p className="text-sm text-muted-foreground">{selectedOrder.notes}</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex flex-wrap gap-2 pt-4 border-t">
+                  {selectedOrder.status === "pending" && (
+                    <Button
+                      onClick={() => updateStatusMutation.mutate({ orderId: selectedOrder.id, status: "confirmed" })}
+                      disabled={updateStatusMutation.isPending}
+                    >
+                      Confirmar
                     </Button>
                   )}
-                  <Button variant="outline" onClick={() => refetch()} className="gap-2">
-                    <RefreshCcw className="h-4 w-4" />
-                    Atualizar
-                  </Button>
+                  {selectedOrder.status === "confirmed" && (
+                    <Button
+                      onClick={() => updateStatusMutation.mutate({ orderId: selectedOrder.id, status: "in_progress" })}
+                      disabled={updateStatusMutation.isPending}
+                    >
+                      Iniciar
+                    </Button>
+                  )}
+                  {selectedOrder.status === "in_progress" && (
+                    <Button
+                      onClick={() => updateStatusMutation.mutate({ orderId: selectedOrder.id, status: "completed" })}
+                      disabled={updateStatusMutation.isPending}
+                    >
+                      Concluir
+                    </Button>
+                  )}
+                  {(selectedOrder.status === "pending" || selectedOrder.status === "confirmed") && (
+                    <Button
+                      variant="destructive"
+                      onClick={() => updateStatusMutation.mutate({ orderId: selectedOrder.id, status: "cancelled" })}
+                      disabled={updateStatusMutation.isPending}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
-          ) : (
-        <div className="space-y-4">
-          {orders?.map((order) => {
-            const StatusIcon = statusConfig[order.status].icon;
-            const totalDuration = order.order_items.reduce(
-              (acc, item) => acc + (item.services?.duration_minutes || 30),
-              0
-            );
-
-            return (
-              <Card key={order.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex">
-                    {/* Time column */}
-                    <div className="bg-muted/50 p-4 flex flex-col items-center justify-center min-w-[100px] border-r border-border">
-                      <span className="text-2xl font-bold">
-                        {format(new Date(order.scheduled_at), "HH:mm")}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {totalDuration} min
-                      </span>
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-2">
-                          {/* Customer info */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">
-                              {order.profiles?.full_name || "Cliente"}
-                            </span>
-                            {order.profiles?.phone && (
-                              <>
-                                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                  <Phone className="h-3 w-3" />
-                                  {order.profiles.phone}
-                                </span>
-                                <WhatsAppButton 
-                                  phone={order.profiles.phone} 
-                                  name={order.profiles.full_name}
-                                />
-                              </>
-                            )}
-                            {order.barbers?.name && (
-                              <Badge variant="outline" className="ml-2">
-                                <Scissors className="h-3 w-3 mr-1" />
-                                {order.barbers.name}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Services */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Scissors className="h-4 w-4 text-muted-foreground" />
-                            {order.order_items.map((item) => (
-                              <Badge key={item.id} variant="secondary">
-                                {item.services?.name || "Serviço"}
-                              </Badge>
-                            ))}
-                          </div>
-
-                          {/* Products */}
-                          {order.order_products && order.order_products.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Package className="h-4 w-4 text-muted-foreground" />
-                              {order.order_products.map((item) => (
-                                <Badge key={item.id} variant="outline" className="border-primary/50 text-primary">
-                                  {item.quantity}x {item.products?.name || "Produto"}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Notes */}
-                          {order.notes && (
-                            <p className="text-sm text-muted-foreground">
-                              {order.notes}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Status and actions */}
-                        <div className="flex flex-col items-end gap-2">
-                          <Badge className={cn("border", statusConfig[order.status].color)}>
-                            <StatusIcon className="h-3 w-3 mr-1" />
-                            {statusConfig[order.status].label}
-                          </Badge>
-
-                          {order.total_price && (
-                            <span className="text-lg font-bold text-primary">
-                              R$ {order.total_price.toFixed(2)}
-                            </span>
-                          )}
-
-                          {/* Quick status actions */}
-                          <div className="flex gap-1">
-                            {order.status === "pending" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  updateStatusMutation.mutate({
-                                    orderId: order.id,
-                                    status: "confirmed",
-                                  })
-                                }
-                              >
-                                Confirmar
-                              </Button>
-                            )}
-                            {order.status === "confirmed" && (
-                              <Button
-                                size="sm"
-                                onClick={() =>
-                                  updateStatusMutation.mutate({
-                                    orderId: order.id,
-                                    status: "in_progress",
-                                  })
-                                }
-                              >
-                                Iniciar
-                              </Button>
-                            )}
-                            {order.status === "in_progress" && (
-                              <Button
-                                size="sm"
-                                onClick={() =>
-                                  updateStatusMutation.mutate({
-                                    orderId: order.id,
-                                    status: "completed",
-                                  })
-                                }
-                              >
-                                Concluir
-                              </Button>
-                            )}
-                            {(order.status === "pending" || order.status === "confirmed") && (
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() =>
-                                  updateStatusMutation.mutate({
-                                    orderId: order.id,
-                                    status: "cancelled",
-                                  })
-                                }
-                              >
-                                Cancelar
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-          </div>
+              </div>
+            </>
           )}
-        </TabsContent>
-      </Tabs>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
