@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Loader2, Save, Settings, Store, Clock } from "lucide-react";
+import { Loader2, Save, Settings, Store, Clock, ImagePlus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface DaySchedule {
   open: string;
@@ -19,6 +20,7 @@ interface BarbershopSettings {
   name: string | null;
   address: string | null;
   whatsapp_phone: string | null;
+  logo_url: string | null;
   monday_open: string | null;
   monday_close: string | null;
   monday_closed: boolean | null;
@@ -56,10 +58,13 @@ export function SettingsTab() {
   const [settings, setSettings] = useState<BarbershopSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
     whatsapp_phone: "",
+    logo_url: "",
   });
   
   const [scheduleData, setScheduleData] = useState<Record<string, DaySchedule>>({
@@ -89,11 +94,12 @@ export function SettingsTab() {
       }
 
       if (data) {
-        setSettings(data);
+        setSettings(data as BarbershopSettings);
         setFormData({
           name: data.name || "",
           address: data.address || "",
           whatsapp_phone: data.whatsapp_phone || "",
+          logo_url: (data as BarbershopSettings).logo_url || "",
         });
         setScheduleData({
           monday: { 
@@ -148,6 +154,67 @@ export function SettingsTab() {
     }));
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione um arquivo de imagem");
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+
+      // Delete old logo if exists
+      if (formData.logo_url) {
+        const oldPath = formData.logo_url.split("/").pop();
+        if (oldPath) {
+          await supabase.storage.from("barbershop").remove([oldPath]);
+        }
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from("barbershop")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("barbershop")
+        .getPublicUrl(fileName);
+
+      setFormData(prev => ({ ...prev, logo_url: publicUrl }));
+      toast.success("Logo carregado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao fazer upload:", error);
+      toast.error("Erro ao fazer upload do logo");
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!formData.logo_url) return;
+
+    try {
+      const fileName = formData.logo_url.split("/").pop();
+      if (fileName) {
+        await supabase.storage.from("barbershop").remove([fileName]);
+      }
+      setFormData(prev => ({ ...prev, logo_url: "" }));
+      toast.success("Logo removido");
+    } catch (error) {
+      console.error("Erro ao remover logo:", error);
+      toast.error("Erro ao remover logo");
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -182,6 +249,7 @@ export function SettingsTab() {
             name: formData.name || null,
             address: formData.address || null,
             whatsapp_phone: formData.whatsapp_phone || null,
+            logo_url: formData.logo_url || null,
             ...scheduleFields,
           })
           .eq("id", settings.id);
@@ -194,6 +262,7 @@ export function SettingsTab() {
             name: formData.name || null,
             address: formData.address || null,
             whatsapp_phone: formData.whatsapp_phone || null,
+            logo_url: formData.logo_url || null,
             ...scheduleFields,
           });
 
@@ -236,6 +305,53 @@ export function SettingsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Logo da Barbearia</Label>
+            <div className="flex items-center gap-4">
+              <Avatar className="h-20 w-20 rounded-lg">
+                <AvatarImage src={formData.logo_url} alt="Logo" className="object-cover" />
+                <AvatarFallback className="rounded-lg bg-muted">
+                  <Store className="h-8 w-8 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                >
+                  {uploadingLogo ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                  )}
+                  {formData.logo_url ? "Alterar Logo" : "Adicionar Logo"}
+                </Button>
+                {formData.logo_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveLogo}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remover
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">Nome da Barbearia</Label>
             <Input
