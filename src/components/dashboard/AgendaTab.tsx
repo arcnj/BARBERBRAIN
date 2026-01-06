@@ -63,12 +63,11 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; bgColor:
   cancelled: { label: "Cancelado", color: "text-red-400", bgColor: "bg-red-500/20 border-red-500/50", icon: XCircle },
 };
 
-// Generate time slots from 7:00 to 21:00
+// Generate time slots from 7:00 to 21:00 (only full hours for compact view)
 const generateTimeSlots = () => {
   const slots = [];
   for (let hour = 7; hour <= 21; hour++) {
     slots.push({ hour, minute: 0, label: `${hour.toString().padStart(2, '0')}:00` });
-    slots.push({ hour, minute: 30, label: `${hour.toString().padStart(2, '0')}:30` });
   }
   return slots;
 };
@@ -181,15 +180,14 @@ export function AgendaTab() {
     enabled: isAdmin || !!barberId,
   });
 
-  // Group orders by time slot
+  // Group orders by hour slot
   const ordersBySlot = useMemo(() => {
     const grouped: Record<string, Order[]> = {};
     
     allOrders?.forEach(order => {
       const orderDate = new Date(order.scheduled_at);
       const hour = orderDate.getHours();
-      const minute = orderDate.getMinutes() >= 30 ? 30 : 0;
-      const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      const slotKey = `${hour.toString().padStart(2, '0')}:00`;
       
       if (!grouped[slotKey]) {
         grouped[slotKey] = [];
@@ -608,101 +606,74 @@ export function AgendaTab() {
         </div>
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid - Compact View */}
       <Card className="overflow-hidden">
-        <ScrollArea className="h-[calc(100vh-280px)] min-h-[500px]">
-          <div className="divide-y divide-border">
+        <ScrollArea className="h-[calc(100vh-280px)]">
+          <div className="grid grid-cols-[60px_1fr]">
             {TIME_SLOTS.map((slot) => {
               const slotKey = slot.label;
               const slotOrders = ordersBySlot[slotKey] || [];
-              const isCurrentHour = isToday(selectedDate) && 
-                new Date().getHours() === slot.hour && 
-                ((new Date().getMinutes() < 30 && slot.minute === 0) || 
-                 (new Date().getMinutes() >= 30 && slot.minute === 30));
+              const isCurrentHour = isToday(selectedDate) && new Date().getHours() === slot.hour;
 
               return (
-                <div
-                  key={slotKey}
-                  className={cn(
-                    "flex min-h-[60px] group",
-                    isCurrentHour && "bg-primary/5"
-                  )}
-                >
+                <div key={slotKey} className="contents">
                   {/* Time label */}
                   <div className={cn(
-                    "w-20 flex-shrink-0 p-2 text-sm font-medium border-r border-border flex items-start justify-end pr-3",
-                    slot.minute === 0 ? "text-foreground" : "text-muted-foreground text-xs",
-                    isCurrentHour && "text-primary"
+                    "py-2 px-2 text-xs font-medium border-b border-r border-border text-right",
+                    isCurrentHour ? "text-primary bg-primary/5" : "text-muted-foreground"
                   )}>
-                    {slot.minute === 0 ? slot.label : ""}
+                    {slot.label}
                   </div>
 
                   {/* Slot content */}
                   <div 
                     className={cn(
-                      "flex-1 p-1 cursor-pointer hover:bg-muted/50 transition-colors relative",
-                      slotOrders.length === 0 && "group-hover:bg-muted/30"
+                      "min-h-[44px] py-1 px-2 border-b border-border cursor-pointer transition-colors flex items-center gap-2 flex-wrap",
+                      isCurrentHour && "bg-primary/5",
+                      slotOrders.length === 0 && "hover:bg-muted/30"
                     )}
-                    onClick={() => slotOrders.length === 0 && handleSlotClick(slot.hour, slot.minute)}
+                    onClick={() => slotOrders.length === 0 && handleSlotClick(slot.hour, 0)}
                   >
                     {slotOrders.length === 0 ? (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Plus className="h-4 w-4 text-muted-foreground" />
-                      </div>
+                      <span className="text-xs text-muted-foreground/50 opacity-0 hover:opacity-100">+ Agendar</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {slotOrders.map((order) => {
-                          const StatusIcon = statusConfig[order.status].icon;
-                          const totalDuration = order.order_items.reduce(
-                            (acc, item) => acc + (item.services?.duration_minutes || 30),
-                            0
-                          );
-                          const serviceName = order.order_items[0]?.services?.name || "Serviço";
+                      slotOrders.map((order) => {
+                        const StatusIcon = statusConfig[order.status].icon;
+                        const totalDuration = order.order_items.reduce(
+                          (acc, item) => acc + (item.services?.duration_minutes || 30),
+                          0
+                        );
+                        const serviceName = order.order_items[0]?.services?.name || "Serviço";
+                        const orderTime = format(new Date(order.scheduled_at), "HH:mm");
 
-                          return (
-                            <div
-                              key={order.id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedOrder(order);
-                              }}
-                              className={cn(
-                                "flex-1 min-w-[200px] max-w-full p-2 rounded-md border cursor-pointer transition-all hover:shadow-md",
-                                statusConfig[order.status].bgColor
-                              )}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 mb-1">
-                                    <StatusIcon className={cn("h-3 w-3 flex-shrink-0", statusConfig[order.status].color)} />
-                                    <span className="font-medium text-sm truncate">
-                                      {order.profiles?.full_name || "Cliente"}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                      <Scissors className="h-3 w-3" />
-                                      {serviceName}
-                                    </span>
-                                    <span>•</span>
-                                    <span>{totalDuration}min</span>
-                                  </div>
-                                  {order.barbers?.name && isAdmin && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                      Barbeiro: {order.barbers.name}
-                                    </div>
-                                  )}
-                                </div>
-                                {order.total_price && (
-                                  <span className="text-sm font-semibold text-primary">
-                                    R$ {order.total_price.toFixed(0)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                        return (
+                          <div
+                            key={order.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedOrder(order);
+                            }}
+                            className={cn(
+                              "flex items-center gap-2 px-2 py-1 rounded border cursor-pointer transition-all hover:shadow-sm text-sm flex-1 min-w-[180px]",
+                              statusConfig[order.status].bgColor
+                            )}
+                          >
+                            <StatusIcon className={cn("h-3.5 w-3.5 flex-shrink-0", statusConfig[order.status].color)} />
+                            <span className="text-xs text-muted-foreground">{orderTime}</span>
+                            <span className="font-medium truncate flex-1">
+                              {order.profiles?.full_name || "Cliente"}
+                            </span>
+                            <span className="text-xs text-muted-foreground hidden sm:inline">
+                              {serviceName} • {totalDuration}min
+                            </span>
+                            {order.total_price && (
+                              <span className="font-semibold text-primary text-sm">
+                                R$ {order.total_price.toFixed(0)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
