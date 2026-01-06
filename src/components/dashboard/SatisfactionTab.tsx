@@ -34,6 +34,7 @@ interface SatisfactionResponse {
   responses: Record<string, any>;
   created_at: string;
   barber_name?: string | null;
+  customer_name?: string;
 }
 
 export function SatisfactionTab() {
@@ -81,7 +82,7 @@ export function SatisfactionTab() {
         .from("satisfaction_responses")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       
       // Fetch barber names separately
@@ -94,10 +95,22 @@ export function SatisfactionTab() {
           .in("id", barberIds);
         barberMap = (barbers || []).reduce((acc, b) => ({ ...acc, [b.id]: b.name }), {});
       }
+
+      // Fetch customer names from profiles
+      const customerIds = [...new Set(data.map(r => r.customer_id).filter(Boolean))];
+      let customerMap: Record<string, string> = {};
+      if (customerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", customerIds);
+        customerMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.user_id]: p.full_name }), {});
+      }
       
       return data.map(r => ({
         ...r,
-        barber_name: r.barber_id ? barberMap[r.barber_id] : null
+        barber_name: r.barber_id ? barberMap[r.barber_id] : null,
+        customer_name: customerMap[r.customer_id] || "Cliente"
       })) as SatisfactionResponse[];
     },
   });
@@ -359,11 +372,62 @@ export function SatisfactionTab() {
         </CardContent>
       </Card>
 
-      {/* Recent Responses */}
+      {/* Open Responses - Destacado */}
+      {responses.filter(r => r.responses?.q5).length > 0 && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              Sugestões dos Clientes
+            </CardTitle>
+            <CardDescription>Respostas abertas com sugestões de melhoria</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {responses
+                .filter((r) => r.responses?.q5)
+                .map((response) => (
+                  <div
+                    key={response.id}
+                    className="p-4 bg-background border rounded-lg space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{response.customer_name}</span>
+                        {response.barber_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            Barbeiro: {response.barber_name}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {format(new Date(response.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge variant={Number(response.responses?.q1) >= 8 ? "default" : "destructive"}>
+                        Experiência: {response.responses?.q1}/10
+                      </Badge>
+                      <Badge variant={Number(response.responses?.q2) >= 8 ? "default" : "destructive"}>
+                        NPS: {response.responses?.q2}/10
+                      </Badge>
+                      <Badge variant="outline">{response.responses?.q3}</Badge>
+                    </div>
+                    <div className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm italic">"{response.responses.q5}"</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All Responses */}
       <Card>
         <CardHeader>
-          <CardTitle>Respostas Recentes</CardTitle>
-          <CardDescription>Últimas 50 respostas recebidas</CardDescription>
+          <CardTitle>Todas as Respostas</CardTitle>
+          <CardDescription>Últimas 100 respostas recebidas</CardDescription>
         </CardHeader>
         <CardContent>
           {responsesLoading ? (
@@ -378,12 +442,13 @@ export function SatisfactionTab() {
             <div className="space-y-3">
               {responses.map((response) => (
                 <div key={response.id} className="p-4 border rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{response.customer_name}</span>
+                      <Badge variant={Number(response.responses?.q1) >= 8 ? "outline" : "destructive"}>
                         Experiência: {response.responses?.q1 || "-"}/10
                       </Badge>
-                      <Badge variant="outline">
+                      <Badge variant={Number(response.responses?.q2) >= 8 ? "outline" : "destructive"}>
                         NPS: {response.responses?.q2 || "-"}/10
                       </Badge>
                       <Badge variant="secondary">
@@ -405,9 +470,12 @@ export function SatisfactionTab() {
                     </p>
                   )}
                   {response.responses?.q5 && (
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Sugestão:</span> {response.responses.q5}
-                    </p>
+                    <div className="p-2 bg-muted rounded mt-2">
+                      <p className="text-sm">
+                        <span className="text-muted-foreground font-medium">💬 Sugestão:</span>{" "}
+                        <span className="italic">"{response.responses.q5}"</span>
+                      </p>
+                    </div>
                   )}
                 </div>
               ))}
