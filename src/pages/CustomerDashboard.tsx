@@ -11,6 +11,7 @@ import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, B
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
+import { BarbershopHeader } from "@/components/customer/BarbershopHeader";
 import { SatisfactionPopup } from "@/components/customer/SatisfactionPopup";
 import { toast } from "sonner";
 import {
@@ -499,6 +500,9 @@ export default function CustomerDashboard() {
         </header>
 
         <main className="container py-6 pb-24">
+          {/* Barbershop Header with Logo and Hours */}
+          <BarbershopHeader />
+
           {/* Welcome Section */}
           <div className="mb-6">
             <h1 className="font-heading text-2xl font-bold text-foreground mb-2">
