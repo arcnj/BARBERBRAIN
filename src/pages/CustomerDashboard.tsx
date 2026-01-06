@@ -11,7 +11,6 @@ import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, B
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
-import { BarbershopHeader } from "@/components/customer/BarbershopHeader";
 import { SatisfactionPopup } from "@/components/customer/SatisfactionPopup";
 import { toast } from "sonner";
 import {
@@ -484,7 +483,14 @@ export default function CustomerDashboard() {
         {/* Header */}
         <header className="sticky top-0 z-50 glass border-b border-border/50">
           <div className="container flex items-center justify-between h-16">
-            <BarbershopHeader />
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <Scissors className="h-5 w-5 text-primary" />
+              </div>
+              <span className="font-heading text-xl font-bold text-foreground">
+                Barber<span className="text-primary">Brain</span>
+              </span>
+            </div>
 
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-5 w-5" />
