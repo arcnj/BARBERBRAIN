@@ -9,6 +9,7 @@ import { ClientsTab } from "@/components/dashboard/ClientsTab";
 import { AnalystTab } from "@/components/dashboard/AnalystTab";
 import { ServicesTab } from "@/components/dashboard/ServicesTab";
 import { ProductsTab } from "@/components/dashboard/ProductsTab";
+import { StockTab } from "@/components/dashboard/StockTab";
 import { PromotionsTab } from "@/components/dashboard/PromotionsTab";
 import { BarbersTab } from "@/components/dashboard/BarbersTab";
 import { SatisfactionTab } from "@/components/dashboard/SatisfactionTab";
@@ -48,6 +49,8 @@ export default function Dashboard() {
         return <ServicesTab />;
       case "produtos":
         return <ProductsTab />;
+      case "estoque":
+        return <StockTab />;
       case "promocoes":
         return <PromotionsTab />;
       case "satisfacao":
