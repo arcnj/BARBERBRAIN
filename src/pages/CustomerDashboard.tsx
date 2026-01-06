@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight, Gift, Cake } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight, Gift, Cake, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
@@ -200,6 +200,22 @@ export default function CustomerDashboard() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [customerName, setCustomerName] = useState<string>("");
   const [birthdayCoupon, setBirthdayCoupon] = useState<BirthdayCoupon | null>(null);
+  const [barbershopWhatsapp, setBarbershopWhatsapp] = useState<string>("");
+
+  const fetchBarbershopSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from("barbershop_settings")
+        .select("whatsapp_phone")
+        .single();
+      
+      if (data?.whatsapp_phone) {
+        setBarbershopWhatsapp(data.whatsapp_phone);
+      }
+    } catch (err) {
+      console.error("Error fetching barbershop settings:", err);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -375,6 +391,7 @@ export default function CustomerDashboard() {
       fetchProducts();
       fetchCustomerName();
       fetchBirthdayCoupon();
+      fetchBarbershopSettings();
     }
   }, [user]);
 
@@ -776,6 +793,31 @@ export default function CustomerDashboard() {
 
                           {order.notes && (
                             <p className="text-sm text-muted-foreground mt-3 p-2 bg-muted/50 rounded">{order.notes}</p>
+                          )}
+
+                          {/* WhatsApp Button */}
+                          {barbershopWhatsapp && order.status !== "completed" && (
+                            <div className="mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full bg-green-600/10 border-green-600/30 text-green-600 hover:bg-green-600 hover:text-white"
+                                onClick={() => {
+                                  const serviceNames = order.order_items.map(item => item.service.name).join(", ");
+                                  const dateStr = order.scheduled_at 
+                                    ? format(new Date(order.scheduled_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                                    : "A definir";
+                                  const barberName = order.preferred_barber?.name || "A definir";
+                                  
+                                  const message = `Olá! 👋\n\nTenho um agendamento:\n\n📅 *Data:* ${dateStr}\n✂️ *Serviços:* ${serviceNames}\n💈 *Barbeiro:* ${barberName}\n💰 *Total:* R$ ${Number(order.total_price).toFixed(2)}\n\nAguardo confirmação! 😊`;
+                                  const whatsappUrl = `https://wa.me/${barbershopWhatsapp}?text=${encodeURIComponent(message)}`;
+                                  window.open(whatsappUrl, "_blank");
+                                }}
+                              >
+                                <MessageCircle className="h-4 w-4 mr-2" />
+                                Enviar para WhatsApp
+                              </Button>
+                            </div>
                           )}
 
                           {canModify && (
