@@ -11,13 +11,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, isToday, isTomorrow, addDays, setHours, setMinutes, isSameDay, getMonth, getDate } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Loader2, ChevronLeft, ChevronRight, Cake, ArrowRight } from "lucide-react";
+import { CalendarIcon, Plus, Clock, User, Scissors, Phone, CheckCircle, XCircle, AlertCircle, Loader2, ChevronLeft, ChevronRight, Cake, ArrowRight, CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -96,6 +97,13 @@ export function AgendaTab() {
     customer: { user_id: string; full_name: string; phone: string } | null;
   } | null>(null);
   const [isSearchingPhone, setIsSearchingPhone] = useState(false);
+  
+  // Confirmation dialogs state
+  const [confirmAction, setConfirmAction] = useState<{
+    type: "complete" | "cancel";
+    orderId: string;
+    cancelReason?: string;
+  } | null>(null);
 
   const queryClient = useQueryClient();
   const isAdmin = role === "admin";
@@ -433,17 +441,56 @@ export function AgendaTab() {
     return getMonth(today) === getMonth(birth) && getDate(today) === getDate(birth);
   };
 
+  const handleConfirmAction = () => {
+    if (!confirmAction) return;
+    
+    if (confirmAction.type === "complete") {
+      updateStatusMutation.mutate({ orderId: confirmAction.orderId, status: "completed" });
+    } else {
+      updateStatusMutation.mutate({ orderId: confirmAction.orderId, status: "cancelled" });
+    }
+    setConfirmAction(null);
+  };
+
   return (
     <div className="space-y-4">
-      {/* Next Client Card */}
-      {nextAppointment && isToday(selectedDate) && (
-        <Card className={cn(
-          "overflow-hidden border-2",
-          isBirthday(nextAppointment.profiles?.birth_date) 
-            ? "border-pink-500 bg-gradient-to-r from-pink-500/10 to-purple-500/10" 
-            : "border-primary/50 bg-primary/5"
-        )}>
-          <CardContent className="p-4">
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction?.type === "complete" ? "Finalizar atendimento?" : "Cancelar agendamento?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.type === "complete" 
+                ? "Tem certeza que deseja finalizar este atendimento? Esta ação não pode ser desfeita."
+                : `Tem certeza que deseja cancelar? Motivo: ${confirmAction?.cancelReason || "Não informado"}`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmAction}
+              className={confirmAction?.type === "complete" ? "bg-green-600 hover:bg-green-700" : "bg-destructive hover:bg-destructive/90"}
+            >
+              {confirmAction?.type === "complete" ? "Sim, finalizar" : "Sim, cancelar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Next Client Card - Always visible */}
+      <Card className={cn(
+        "overflow-hidden border-2",
+        nextAppointment && isBirthday(nextAppointment.profiles?.birth_date) 
+          ? "border-pink-500 bg-gradient-to-r from-pink-500/10 to-purple-500/10" 
+          : nextAppointment 
+            ? "border-primary/50 bg-primary/5"
+            : "border-muted bg-muted/5"
+      )}>
+        <CardContent className="p-4">
+          {nextAppointment ? (
             <div className="flex items-center gap-4">
               {/* Avatar */}
               <div className="relative">
@@ -482,7 +529,7 @@ export function AgendaTab() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  {nextAppointment.order_items.map((item, idx) => (
+                  {nextAppointment.order_items.map((item) => (
                     <Badge key={item.id} variant="secondary" className="text-xs">
                       <Scissors className="h-3 w-3 mr-1" />
                       {item.services?.name}
@@ -499,8 +546,8 @@ export function AgendaTab() {
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    variant="success"
-                    onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "completed" })}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => setConfirmAction({ type: "complete", orderId: nextAppointment.id })}
                     disabled={updateStatusMutation.isPending}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
@@ -514,13 +561,13 @@ export function AgendaTab() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "cancelled" })}>
+                      <DropdownMenuItem onClick={() => setConfirmAction({ type: "cancel", orderId: nextAppointment.id, cancelReason: "Cliente cancelou" })}>
                         Cliente cancelou
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "cancelled" })}>
+                      <DropdownMenuItem onClick={() => setConfirmAction({ type: "cancel", orderId: nextAppointment.id, cancelReason: "Cliente não veio" })}>
                         Cliente não veio
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => updateStatusMutation.mutate({ orderId: nextAppointment.id, status: "cancelled" })}>
+                      <DropdownMenuItem onClick={() => setConfirmAction({ type: "cancel", orderId: nextAppointment.id, cancelReason: "Cancelado pelo barbeiro" })}>
                         Cancelado pelo barbeiro
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -528,9 +575,24 @@ export function AgendaTab() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="flex items-center gap-4 py-2">
+              <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center">
+                <CalendarOff className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <div className="flex-1">
+                <span className="text-xs text-muted-foreground uppercase tracking-wide">Próximo cliente</span>
+                <p className="text-muted-foreground font-medium mt-1">
+                  {isToday(selectedDate) 
+                    ? "Nenhum agendamento pendente para hoje" 
+                    : "Selecione o dia de hoje para ver o próximo cliente"
+                  }
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       {/* Header with navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
