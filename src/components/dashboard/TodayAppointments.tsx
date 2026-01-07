@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CheckCircle, XCircle, Clock, Scissors, Loader2, ClipboardList, ChevronDown } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Scissors, ClipboardList, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
@@ -80,6 +80,7 @@ const statusConfig: Record<OrderStatus, { label: string; color: string; bgColor:
 
 export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps) {
   const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     type: "complete" | "cancel" | "complete_all";
     orderId?: string;
@@ -190,55 +191,60 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ClipboardList className="h-5 w-5 text-primary" />
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            <span className="hidden sm:inline">Atendimentos</span>
+            <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+              {activeOrders.length}
+            </Badge>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 sm:w-96 p-0" align="start">
+          <div className="p-3 border-b flex items-center justify-between">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-primary" />
               Atendimentos de Hoje
-              <Badge variant="secondary" className="ml-2">{activeOrders.length}</Badge>
-            </CardTitle>
+            </h4>
             {activeOrders.length > 1 && (
               <Button
                 size="sm"
                 variant="outline"
+                className="h-7 text-xs"
                 onClick={() => setConfirmAction({ type: "complete_all" })}
                 disabled={isPending}
               >
-                <CheckCircle className="h-4 w-4 mr-1" />
+                <CheckCircle className="h-3 w-3 mr-1" />
                 Finalizar Todos
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="pt-0">
+          
           <ScrollArea className="max-h-[300px]">
-            <div className="space-y-2">
+            <div className="p-2 space-y-2">
               {activeOrders.map((order) => (
                 <div
                   key={order.id}
                   className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border transition-colors",
+                    "flex items-center gap-2 p-2 rounded-lg border transition-colors",
                     statusConfig[order.status].bgColor
                   )}
                 >
                   {/* Avatar */}
-                  <Avatar className="h-10 w-10 flex-shrink-0">
+                  <Avatar className="h-8 w-8 flex-shrink-0">
                     <AvatarImage src={order.profiles?.avatar_url || undefined} />
-                    <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+                    <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
                       {order.profiles?.full_name?.charAt(0) || "?"}
                     </AvatarFallback>
                   </Avatar>
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{order.profiles?.full_name || "Cliente"}</span>
-                      <Badge variant="outline" className={cn("text-xs", statusConfig[order.status].color)}>
-                        {statusConfig[order.status].label}
-                      </Badge>
+                    <div className="font-medium text-sm truncate">
+                      {order.profiles?.full_name || "Cliente"}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>{format(new Date(order.scheduled_at), "HH:mm", { locale: ptBR })}</span>
                       <span>•</span>
@@ -248,18 +254,16 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
                   </div>
 
                   {/* Price */}
-                  <div className="text-right flex-shrink-0">
-                    <span className="font-bold text-primary">
-                      R$ {(order.total_price || 0).toFixed(0)}
-                    </span>
+                  <div className="text-xs font-bold text-primary flex-shrink-0">
+                    R$ {(order.total_price || 0).toFixed(0)}
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="ghost"
-                      className="h-8 px-2 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+                      className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
                       onClick={() => setConfirmAction({ type: "complete", orderId: order.id })}
                       disabled={isPending}
                     >
@@ -269,13 +273,12 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
-                          size="sm"
+                          size="icon"
                           variant="ghost"
-                          className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                           disabled={isPending}
                         >
                           <XCircle className="h-4 w-4" />
-                          <ChevronDown className="h-3 w-3 ml-0.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -319,8 +322,8 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
               ))}
             </div>
           </ScrollArea>
-        </CardContent>
-      </Card>
+        </PopoverContent>
+      </Popover>
     </>
   );
 }
