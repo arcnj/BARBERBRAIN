@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Loader2 } from "lucide-react";
-import { format, startOfDay, endOfDay, isToday, isBefore, setHours, setMinutes, addMinutes } from "date-fns";
+import { Clock, Loader2, AlertCircle } from "lucide-react";
+import { format, startOfDay, endOfDay, isToday, isBefore, setHours, setMinutes, addMinutes, getDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 interface AvailableTimeSlotsProps {
@@ -17,19 +18,37 @@ interface AvailableTimeSlotsProps {
   serviceDuration: number;
 }
 
-// Generate time slots from 7:00 to 21:00 in 30 minute intervals
-const generateAllTimeSlots = () => {
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
+// Generate time slots between open and close times in 30 minute intervals
+const generateTimeSlots = (openTime: string, closeTime: string) => {
   const slots: { hour: number; minute: number; label: string }[] = [];
-  for (let hour = 7; hour <= 21; hour++) {
-    slots.push({ hour, minute: 0, label: `${hour.toString().padStart(2, '0')}:00` });
-    if (hour < 21) {
-      slots.push({ hour, minute: 30, label: `${hour.toString().padStart(2, '0')}:30` });
+  
+  const [openHour, openMinute] = openTime.split(':').map(Number);
+  const [closeHour, closeMinute] = closeTime.split(':').map(Number);
+  
+  let currentHour = openHour;
+  let currentMinute = openMinute;
+  
+  while (
+    currentHour < closeHour || 
+    (currentHour === closeHour && currentMinute < closeMinute)
+  ) {
+    slots.push({
+      hour: currentHour,
+      minute: currentMinute,
+      label: `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`
+    });
+    
+    currentMinute += 30;
+    if (currentMinute >= 60) {
+      currentMinute = 0;
+      currentHour++;
     }
   }
+  
   return slots;
 };
-
-const ALL_TIME_SLOTS = generateAllTimeSlots();
 
 export function AvailableTimeSlots({
   selectedDate,
@@ -38,8 +57,23 @@ export function AvailableTimeSlots({
   barberId,
   serviceDuration,
 }: AvailableTimeSlotsProps) {
+  // Fetch barbershop settings for operating hours
+  const { data: settings, isLoading: isLoadingSettings } = useQuery({
+    queryKey: ["barbershop-settings-hours"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("barbershop_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60_000,
+  });
+
   // Fetch existing orders for the selected date
-  const { data: existingOrders, isLoading } = useQuery({
+  const { data: existingOrders, isLoading: isLoadingOrders } = useQuery({
     queryKey: ["available-slots-orders", format(selectedDate, "yyyy-MM-dd"), barberId],
     queryFn: async () => {
       const startDate = startOfDay(selectedDate).toISOString();
@@ -72,11 +106,37 @@ export function AvailableTimeSlots({
     staleTime: 30_000,
   });
 
+  // Get operating hours for the selected date
+  const daySchedule = useMemo(() => {
+    if (!settings) return null;
+    
+    const dayIndex = getDay(selectedDate);
+    const dayKey = DAY_KEYS[dayIndex];
+    
+    const openKey = `${dayKey}_open` as keyof typeof settings;
+    const closeKey = `${dayKey}_close` as keyof typeof settings;
+    const closedKey = `${dayKey}_closed` as keyof typeof settings;
+    
+    return {
+      open: settings[openKey] as string | null,
+      close: settings[closeKey] as string | null,
+      closed: settings[closedKey] as boolean | null,
+    };
+  }, [settings, selectedDate]);
+
+  // Generate time slots based on operating hours
+  const timeSlots = useMemo(() => {
+    if (!daySchedule || daySchedule.closed || !daySchedule.open || !daySchedule.close) {
+      return [];
+    }
+    return generateTimeSlots(daySchedule.open, daySchedule.close);
+  }, [daySchedule]);
+
   // Calculate available slots
   const availableSlots = useMemo(() => {
     const now = new Date();
     
-    return ALL_TIME_SLOTS.map(slot => {
+    return timeSlots.map(slot => {
       const slotTime = setMinutes(setHours(selectedDate, slot.hour), slot.minute);
       const slotEnd = addMinutes(slotTime, serviceDuration);
       
@@ -105,9 +165,10 @@ export function AvailableTimeSlots({
       
       return { ...slot, available: true, reason: null };
     });
-  }, [selectedDate, existingOrders, serviceDuration]);
+  }, [selectedDate, existingOrders, serviceDuration, timeSlots]);
 
   const availableCount = availableSlots.filter(s => s.available).length;
+  const isLoading = isLoadingSettings || isLoadingOrders;
 
   if (isLoading) {
     return (
@@ -115,6 +176,23 @@ export function AvailableTimeSlots({
         <Label>Horário</Label>
         <div className="flex items-center justify-center h-32 border rounded-lg bg-muted/20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  // Day is closed
+  if (daySchedule?.closed || timeSlots.length === 0) {
+    const dayName = format(selectedDate, "EEEE", { locale: ptBR });
+    return (
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Horário
+        </Label>
+        <div className="flex flex-col items-center justify-center h-32 border rounded-lg bg-muted/20 text-muted-foreground">
+          <AlertCircle className="h-6 w-6 mb-2" />
+          <span className="text-sm">Fechado {dayName}</span>
         </div>
       </div>
     );
