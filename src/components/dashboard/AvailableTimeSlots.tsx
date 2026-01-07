@@ -210,8 +210,8 @@ export function AvailableTimeSlots({
         </Badge>
       </div>
       
-      <ScrollArea className="h-40 border rounded-lg p-2">
-        <div className="grid grid-cols-4 gap-1.5">
+      <ScrollArea className="h-32 border rounded-lg p-2">
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
           {availableSlots.map((slot) => (
             <Button
               key={slot.label}

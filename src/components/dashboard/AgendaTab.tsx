@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvailableTimeSlots } from "./AvailableTimeSlots";
+import { TodayAppointments } from "./TodayAppointments";
 
 type OrderStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
@@ -552,7 +553,7 @@ export function AgendaTab() {
                     disabled={updateStatusMutation.isPending}
                   >
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    Finalizar tudo
+                    Finalizar
                   </Button>
 
                   <DropdownMenu>
@@ -616,6 +617,12 @@ export function AgendaTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Today's Appointments Section */}
+      {isToday(selectedDate) && allOrders && (
+        <TodayAppointments orders={allOrders} isLoading={isLoading} />
+      )}
+
       {/* Header with navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -667,7 +674,7 @@ export function AgendaTab() {
                 Novo Agendamento
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="max-w-[95vw] sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Novo Agendamento</DialogTitle>
               </DialogHeader>
