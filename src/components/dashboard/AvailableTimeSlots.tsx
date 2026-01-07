@@ -93,7 +93,7 @@ export function AvailableTimeSlots({
         `)
         .gte("scheduled_at", startDate)
         .lte("scheduled_at", endDate)
-        .not("status", "in", '("cancelled","completed")');
+        .in("status", ["pending", "confirmed", "in_progress"]);
 
       if (barberId) {
         query = query.or(`barber_id.eq.${barberId},preferred_barber_id.eq.${barberId}`);
