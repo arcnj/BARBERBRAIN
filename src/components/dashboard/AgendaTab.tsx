@@ -618,21 +618,16 @@ export function AgendaTab() {
         </CardContent>
       </Card>
 
-      {/* Today's Appointments Section */}
-      {isToday(selectedDate) && allOrders && (
-        <TodayAppointments orders={allOrders} isLoading={isLoading} />
-      )}
-
       {/* Header with navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="icon" onClick={goToPreviousDay}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="min-w-[200px] justify-center capitalize">
+              <Button variant="outline" className="min-w-[140px] sm:min-w-[200px] justify-center capitalize">
                 <CalendarIcon className="h-4 w-4 mr-2" />
                 {getDateLabel(selectedDate)}
               </Button>
@@ -656,6 +651,11 @@ export function AgendaTab() {
             <Button variant="ghost" size="sm" onClick={goToToday}>
               Hoje
             </Button>
+          )}
+
+          {/* Today's Appointments Popover */}
+          {isToday(selectedDate) && allOrders && (
+            <TodayAppointments orders={allOrders} isLoading={isLoading} />
           )}
         </div>
 
