@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Scissors, Loader2 } from "lucide-react";
+import { Scissors, Loader2, ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { z } from "zod";
 
@@ -153,6 +154,15 @@ export default function Auth() {
 
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8">
+          {/* Back Button */}
+          <Link 
+            to="/" 
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Voltar ao início</span>
+          </Link>
+
           {/* Logo */}
           <div className="text-center">
             <div className="inline-flex items-center gap-2 mb-4">
