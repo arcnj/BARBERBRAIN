@@ -149,7 +149,7 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
     try {
       const [servicesRes, barbersRes, combosRes] = await Promise.all([
         supabase.from("services").select("*").eq("active", true).order("category"),
-        supabase.from("barbers").select("id, name, avatar_url").eq("active", true),
+        supabase.from("barbers_public").select("id, name, avatar_url").eq("active", true),
         supabase.from("service_combos").select("*").eq("active", true),
       ]);
 

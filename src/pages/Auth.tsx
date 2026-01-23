@@ -11,6 +11,7 @@ import { Scissors, Loader2, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { z } from "zod";
+import { MFAVerify } from "@/components/auth/MFAVerify";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -31,9 +32,10 @@ const signupSchema = z.object({
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { user, role, loading, signIn, signUp } = useAuth();
+  const { user, role, loading, signIn, signUp, needsMFAVerification, refreshMFAStatus } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showMFAVerify, setShowMFAVerify] = useState(false);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -51,6 +53,12 @@ export default function Auth() {
 
   useEffect(() => {
     if (!loading && user && role) {
+      // Check if MFA verification is needed
+      if (needsMFAVerification) {
+        setShowMFAVerify(true);
+        return;
+      }
+      
       // Redirect based on role
       if (role === "barber" || role === "admin") {
         navigate("/dashboard");
@@ -58,7 +66,18 @@ export default function Auth() {
         navigate("/cliente");
       }
     }
-  }, [user, role, loading, navigate]);
+  }, [user, role, loading, navigate, needsMFAVerification]);
+
+  const handleMFAVerified = async () => {
+    setShowMFAVerify(false);
+    await refreshMFAStatus();
+    // After MFA verification, redirect
+    if (role === "barber" || role === "admin") {
+      navigate("/dashboard");
+    } else {
+      navigate("/cliente");
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +161,37 @@ export default function Auth() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // Show MFA verification screen if needed
+  if (showMFAVerify) {
+    return (
+      <>
+        <Helmet>
+          <title>Verificação 2FA - BarberBrain</title>
+        </Helmet>
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-md space-y-8">
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Scissors className="h-8 w-8 text-primary" />
+                </div>
+                <span className="font-heading text-3xl font-bold text-foreground">
+                  Barber<span className="text-primary">Brain</span>
+                </span>
+              </div>
+            </div>
+            <MFAVerify
+              onVerified={handleMFAVerified}
+              onCancel={() => {
+                setShowMFAVerify(false);
+              }}
+            />
+          </div>
+        </div>
+      </>
     );
   }
 
