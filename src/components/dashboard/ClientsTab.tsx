@@ -11,7 +11,7 @@ import { ptBR } from "date-fns/locale";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { PeriodFilter } from "@/components/ui/period-filter";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
