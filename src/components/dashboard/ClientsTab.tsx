@@ -153,7 +153,7 @@ export function ClientsTab() {
     setPeriodType(type);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const data = recentClients.map(client => ({
       "Nome": client.name,
       "Telefone": client.phone || "-",
@@ -165,17 +165,44 @@ export function ClientsTab() {
       "Data de Nascimento": client.birthDate ? format(new Date(client.birthDate), "dd/MM/yyyy", { locale: ptBR }) : "-",
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Clientes");
     
-    // Add column widths
-    ws["!cols"] = [
-      { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 12 },
-      { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }
+    // Add headers
+    const headers = Object.keys(data[0] || {});
+    worksheet.addRow(headers);
+    
+    // Style header row
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.eachCell((cell) => {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+    });
+    
+    // Add data rows
+    data.forEach(row => {
+      worksheet.addRow(Object.values(row));
+    });
+    
+    // Set column widths
+    worksheet.columns = [
+      { width: 25 }, { width: 15 }, { width: 25 }, { width: 12 },
+      { width: 15 }, { width: 15 }, { width: 10 }, { width: 15 }
     ];
     
-    XLSX.writeFile(wb, `relatorio-clientes-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    // Generate and download file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `relatorio-clientes-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportToPDF = () => {
