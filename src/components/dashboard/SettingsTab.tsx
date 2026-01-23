@@ -8,6 +8,8 @@ import { Loader2, Save, Settings, Store, Clock, ImagePlus, Trash2 } from "lucide
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { MFASettings } from "@/components/auth/MFASettings";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DaySchedule {
   open: string;
@@ -55,6 +57,7 @@ const DAYS = [
 ] as const;
 
 export function SettingsTab() {
+  const { role } = useAuth();
   const [settings, setSettings] = useState<BarbershopSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -445,6 +448,14 @@ export function SettingsTab() {
         )}
         Salvar Configurações
       </Button>
+
+      {/* Security Settings - Only show to admin and barber */}
+      {(role === "admin" || role === "barber") && (
+        <div className="pt-6 border-t">
+          <h3 className="text-lg font-semibold mb-4">Segurança da Conta</h3>
+          <MFASettings />
+        </div>
+      )}
     </div>
   );
 }

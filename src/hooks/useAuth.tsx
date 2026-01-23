@@ -1,17 +1,27 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { User, Session, AuthenticatorAssuranceLevels } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 type AppRole = "admin" | "barber" | "customer";
+
+interface MFAInfo {
+  isEnabled: boolean;
+  isVerified: boolean;
+  currentLevel: AuthenticatorAssuranceLevels | null;
+  nextLevel: AuthenticatorAssuranceLevels | null;
+}
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
   loading: boolean;
+  mfa: MFAInfo;
+  needsMFAVerification: boolean;
   signUp: (email: string, password: string, metadata: SignUpMetadata) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshMFAStatus: () => Promise<void>;
 }
 
 interface SignUpMetadata {
@@ -27,6 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfa, setMFA] = useState<MFAInfo>({
+    isEnabled: false,
+    isVerified: false,
+    currentLevel: null,
+    nextLevel: null,
+  });
 
   const fetchUserRole = async (userId: string) => {
     try {
@@ -48,6 +64,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const checkMFAStatus = useCallback(async () => {
+    try {
+      const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+      if (aalError) {
+        console.error("Error checking AAL:", aalError);
+        return;
+      }
+
+      const { data: factorsData, error: factorsError } = await supabase.auth.mfa.listFactors();
+
+      if (factorsError) {
+        console.error("Error listing factors:", factorsError);
+        return;
+      }
+
+      const hasVerifiedFactor = factorsData.totp.some((f) => f.status === "verified");
+      
+      const isFullyVerified = 
+        aalData.currentLevel === aalData.nextLevel || 
+        aalData.nextLevel === "aal1";
+
+      setMFA({
+        isEnabled: hasVerifiedFactor,
+        isVerified: isFullyVerified,
+        currentLevel: aalData.currentLevel,
+        nextLevel: aalData.nextLevel,
+      });
+    } catch (err) {
+      console.error("MFA check error:", err);
+    }
+  }, []);
+
   useEffect(() => {
     // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -55,13 +104,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Fetch role with setTimeout to avoid deadlock
+        // Fetch role and MFA status with setTimeout to avoid deadlock
         if (session?.user) {
           setTimeout(() => {
             fetchUserRole(session.user.id).then(setRole);
+            checkMFAStatus();
           }, 0);
         } else {
           setRole(null);
+          setMFA({
+            isEnabled: false,
+            isVerified: false,
+            currentLevel: null,
+            nextLevel: null,
+          });
         }
 
         setLoading(false);
@@ -75,13 +131,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (session?.user) {
         fetchUserRole(session.user.id).then(setRole);
+        checkMFAStatus();
       }
 
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkMFAStatus]);
 
   const signUp = async (email: string, password: string, metadata: SignUpMetadata) => {
     const redirectUrl = `${window.location.origin}/`;
@@ -108,6 +165,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
 
+    // After sign in, check MFA status
+    if (!error) {
+      await checkMFAStatus();
+    }
+
     return { error: error as Error | null };
   };
 
@@ -116,7 +178,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setRole(null);
+    setMFA({
+      isEnabled: false,
+      isVerified: false,
+      currentLevel: null,
+      nextLevel: null,
+    });
   };
+
+  // Check if user needs MFA verification (only for admin/barber roles)
+  const needsMFAVerification = 
+    !loading && 
+    user !== null && 
+    mfa.isEnabled && 
+    !mfa.isVerified && 
+    (role === "admin" || role === "barber");
 
   return (
     <AuthContext.Provider
@@ -125,9 +201,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         role,
         loading,
+        mfa,
+        needsMFAVerification,
         signUp,
         signIn,
         signOut,
+        refreshMFAStatus: checkMFAStatus,
       }}
     >
       {children}

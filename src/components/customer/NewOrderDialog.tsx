@@ -72,8 +72,8 @@ export function NewOrderDialog({ open, onOpenChange, onOrderCreated }: NewOrderD
     try {
       const [servicesRes, barbersRes, productsRes] = await Promise.all([
         supabase.from("services").select("*").eq("active", true).order("category"),
-        supabase.from("barbers").select("id, name").eq("active", true),
-        supabase.from("products").select("id, name, price, image_url").eq("active", true).order("name"),
+        supabase.from("barbers_public").select("id, name").eq("active", true),
+        supabase.from("products_public").select("id, name, price, image_url").eq("active", true).order("name"),
       ]);
 
       if (servicesRes.error) throw servicesRes.error;
