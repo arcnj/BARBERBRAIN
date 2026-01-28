@@ -247,23 +247,25 @@ export function ClientsTab() {
       `R$ ${client.spent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
       client.visits.toString(),
       client.phone || "-",
+      client.status,
     ]);
 
     autoTable(doc, {
       startY: yPos + 8,
-      head: [["Última Visita", "Nome", "Email", "Total Gasto", "Visitas", "Contato"]],
+      head: [["Última Visita", "Nome", "Email", "Total Gasto", "Visitas", "Contato", "Status"]],
       body: tableData,
       theme: "striped",
       headStyles: { fillColor: [79, 70, 229], fontSize: 9 },
       margin: { left: 14, right: 14 },
       styles: { fontSize: 8, cellPadding: 3 },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 45 },
-        3: { cellWidth: 28 },
-        4: { cellWidth: 18 },
-        5: { cellWidth: 30 },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 15 },
+        5: { cellWidth: 28 },
+        6: { cellWidth: 20 },
       },
     });
 
