@@ -160,23 +160,20 @@ export function ClientsTab() {
   };
 
   const exportToExcel = async () => {
-    const data = recentClients.map(client => ({
-      "Nome": client.name,
-      "Telefone": client.phone || "-",
-      "Email": client.email || "-",
-      "Status": client.status,
-      "Última Visita": client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
-      "Total Gasto (R$)": client.spent.toFixed(2),
-      "Visitas": client.visits,
-      "Data de Nascimento": client.birthDate ? format(new Date(client.birthDate), "dd/MM/yyyy", { locale: ptBR }) : "-",
-    }));
-
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Clientes");
     
-    // Add headers
-    const headers = Object.keys(data[0] || {});
-    worksheet.addRow(headers);
+    // Define columns with proper formatting
+    worksheet.columns = [
+      { header: "Nome", key: "nome", width: 25 },
+      { header: "Telefone", key: "telefone", width: 15 },
+      { header: "Email", key: "email", width: 25 },
+      { header: "Status", key: "status", width: 12 },
+      { header: "Última Visita", key: "ultima_visita", width: 15 },
+      { header: "Total Gasto", key: "total_gasto", width: 18 },
+      { header: "Visitas", key: "visitas", width: 10 },
+      { header: "Data de Nascimento", key: "nascimento", width: 15 },
+    ];
     
     // Style header row
     const headerRow = worksheet.getRow(1);
@@ -185,20 +182,27 @@ export function ClientsTab() {
       cell.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
+        fgColor: { argb: 'FF4F46E5' }
       };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     });
     
     // Add data rows
-    data.forEach(row => {
-      worksheet.addRow(Object.values(row));
+    recentClients.forEach(client => {
+      const row = worksheet.addRow({
+        nome: client.name,
+        telefone: client.phone || "-",
+        email: client.email || "-",
+        status: client.status,
+        ultima_visita: client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
+        total_gasto: client.spent,
+        visitas: client.visits,
+        nascimento: client.birthDate ? format(new Date(client.birthDate), "dd/MM/yyyy", { locale: ptBR }) : "-",
+      });
+      
+      // Apply Brazilian currency format to Total Gasto column
+      row.getCell('total_gasto').numFmt = '"R$" #,##0.00';
     });
-    
-    // Set column widths
-    worksheet.columns = [
-      { width: 25 }, { width: 15 }, { width: 25 }, { width: 12 },
-      { width: 15 }, { width: 15 }, { width: 10 }, { width: 15 }
-    ];
     
     // Generate and download file
     const buffer = await workbook.xlsx.writeBuffer();
@@ -206,7 +210,7 @@ export function ClientsTab() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `relatorio-clientes-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+    link.download = `clientes-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
