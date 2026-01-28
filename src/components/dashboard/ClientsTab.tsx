@@ -4,6 +4,7 @@ import { Trophy, AlertTriangle, UserX, Sparkles, Search, Filter, Loader2, FileSp
 import { BirthdaySection } from "./BirthdaySection";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isWithinInterval } from "date-fns";
@@ -46,12 +47,15 @@ function calculateStatus(visits: number, spent: number, daysSinceLastVisit: numb
   return "Ativo";
 }
 
+type SegmentFilter = "all" | "VIP" | "Em Risco" | "Perdido" | "Novo" | "Ativo";
+
 export function ClientsTab() {
   const [searchTerm, setSearchTerm] = useState("");
   const [periodStart, setPeriodStart] = useState<Date>(startOfMonth(new Date()));
   const [periodEnd, setPeriodEnd] = useState<Date>(endOfMonth(new Date()));
   const [periodType, setPeriodType] = useState<string>("month");
   const [filterByPeriod, setFilterByPeriod] = useState(false);
+  const [selectedSegment, setSelectedSegment] = useState<SegmentFilter>("all");
 
   const { data: customers, isLoading: loadingCustomers } = useQuery({
     queryKey: ["customers-with-orders"],
@@ -120,24 +124,27 @@ export function ClientsTab() {
     const matchesPeriod = !filterByPeriod || 
       (customer.lastVisitDate && isWithinInterval(customer.lastVisitDate, { start: periodStart, end: periodEnd }));
     
-    return matchesSearch && matchesPeriod;
+    const matchesSegment = selectedSegment === "all" || customer.status === selectedSegment;
+    
+    return matchesSearch && matchesPeriod && matchesSegment;
   }) || [];
 
-  // Calculate segment counts from filtered
-  const segments = {
-    vip: filteredCustomers.filter(c => c.status === "VIP"),
-    atRisk: filteredCustomers.filter(c => c.status === "Em Risco"),
-    lost: filteredCustomers.filter(c => c.status === "Perdido"),
-    new: filteredCustomers.filter(c => c.status === "Novo"),
-    active: filteredCustomers.filter(c => c.status === "Ativo"),
+  // Calculate segment counts from ALL customers (not filtered)
+  const allSegments = {
+    vip: customers?.filter(c => c.status === "VIP") || [],
+    atRisk: customers?.filter(c => c.status === "Em Risco") || [],
+    lost: customers?.filter(c => c.status === "Perdido") || [],
+    new: customers?.filter(c => c.status === "Novo") || [],
+    active: customers?.filter(c => c.status === "Ativo") || [],
   };
 
-  const totalRevenue = filteredCustomers.reduce((sum, c) => sum + c.spent, 0);
-  const vipRevenue = segments.vip.reduce((sum, c) => sum + c.spent, 0);
+  const totalRevenue = customers?.reduce((sum, c) => sum + c.spent, 0) || 0;
+  const vipRevenue = allSegments.vip.reduce((sum, c) => sum + c.spent, 0);
   const vipPercentage = totalRevenue > 0 ? Math.round((vipRevenue / totalRevenue) * 100) : 0;
-  const atRiskRevenue = segments.atRisk.reduce((sum, c) => sum + c.spent, 0);
-  const newReturned = segments.new.filter(c => c.visits >= 2).length;
-  const newReturnRate = segments.new.length > 0 ? Math.round((newReturned / segments.new.length) * 100) : 0;
+  const atRiskRevenue = allSegments.atRisk.reduce((sum, c) => sum + c.spent, 0);
+  const newReturned = allSegments.new.filter(c => c.visits >= 2).length;
+  const newReturnRate = allSegments.new.length > 0 ? Math.round((newReturned / allSegments.new.length) * 100) : 0;
+
 
   const recentClients = [...filteredCustomers]
     .sort((a, b) => {
@@ -234,11 +241,11 @@ export function ClientsTab() {
     
     const summaryData = [
       ["Total de Clientes", filteredCustomers.length.toString()],
-      ["Clientes VIP", `${segments.vip.length} (${vipPercentage}% do faturamento)`],
-      ["Clientes Em Risco", `${segments.atRisk.length} (R$ ${atRiskRevenue.toLocaleString("pt-BR")} em risco)`],
-      ["Clientes Perdidos", segments.lost.length.toString()],
-      ["Novos Clientes", `${segments.new.length} (${newReturnRate}% retornaram)`],
-      ["Clientes Ativos", segments.active.length.toString()],
+      ["Clientes VIP", `${allSegments.vip.length} (${vipPercentage}% do faturamento)`],
+      ["Clientes Em Risco", `${allSegments.atRisk.length} (R$ ${atRiskRevenue.toLocaleString("pt-BR")} em risco)`],
+      ["Clientes Perdidos", allSegments.lost.length.toString()],
+      ["Novos Clientes", `${allSegments.new.length} (${newReturnRate}% retornaram)`],
+      ["Clientes Ativos", allSegments.active.length.toString()],
       ["Faturamento Total", `R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`],
     ];
 
@@ -319,11 +326,11 @@ export function ClientsTab() {
       });
     };
 
-    addSegmentPage("Clientes VIP", segments.vip, [79, 70, 229]);
-    addSegmentPage("Clientes Em Risco", segments.atRisk, [234, 179, 8]);
-    addSegmentPage("Clientes Perdidos", segments.lost, [220, 38, 38]);
-    addSegmentPage("Novos Clientes", segments.new, [59, 130, 246]);
-    addSegmentPage("Clientes Ativos", segments.active, [34, 197, 94]);
+    addSegmentPage("Clientes VIP", allSegments.vip, [79, 70, 229]);
+    addSegmentPage("Clientes Em Risco", allSegments.atRisk, [234, 179, 8]);
+    addSegmentPage("Clientes Perdidos", allSegments.lost, [220, 38, 38]);
+    addSegmentPage("Novos Clientes", allSegments.new, [59, 130, 246]);
+    addSegmentPage("Clientes Ativos", allSegments.active, [34, 197, 94]);
 
     doc.save(`relatorio-clientes-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
@@ -394,46 +401,67 @@ export function ClientsTab() {
         </div>
       </div>
       
+      {/* Segment Filter Indicator */}
+      {selectedSegment !== "all" && (
+        <div className="flex items-center gap-2 animate-fade-in">
+          <Badge variant="secondary" className="gap-1">
+            Filtro ativo: {selectedSegment}
+          </Badge>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setSelectedSegment("all")}
+            className="h-6 px-2 text-xs"
+          >
+            Limpar filtro
+          </Button>
+        </div>
+      )}
+
       {/* Segment Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <SegmentCard
           icon={Trophy}
           iconColor="text-primary"
           title="Clientes VIP"
-          count={segments.vip.length}
+          count={allSegments.vip.length}
           subtitle={`${vipPercentage}% do faturamento`}
-          actionLabel="Ver lista"
-          className="[animation-delay:200ms]"
+          actionLabel={selectedSegment === "VIP" ? "Mostrando VIPs" : "Ver lista"}
+          onAction={() => setSelectedSegment(selectedSegment === "VIP" ? "all" : "VIP")}
+          className={`[animation-delay:200ms] ${selectedSegment === "VIP" ? "ring-2 ring-primary" : ""}`}
         />
         
         <SegmentCard
           icon={AlertTriangle}
           iconColor="text-warning"
           title="Em Risco"
-          count={segments.atRisk.length}
+          count={allSegments.atRisk.length}
           subtitle={`R$ ${atRiskRevenue.toLocaleString("pt-BR")} em risco`}
-          actionLabel="Recuperar agora"
-          className="[animation-delay:300ms]"
+          actionLabel={selectedSegment === "Em Risco" ? "Mostrando Em Risco" : "Recuperar agora"}
+          onAction={() => setSelectedSegment(selectedSegment === "Em Risco" ? "all" : "Em Risco")}
+          className={`[animation-delay:300ms] ${selectedSegment === "Em Risco" ? "ring-2 ring-warning" : ""}`}
         />
         
         <SegmentCard
           icon={UserX}
           iconColor="text-destructive"
           title="Perdidos"
-          count={segments.lost.length}
+          count={allSegments.lost.length}
           subtitle="Sem vir há 60+ dias"
-          actionLabel="Campanha de reativação"
-          className="[animation-delay:400ms]"
+          actionLabel={selectedSegment === "Perdido" ? "Mostrando Perdidos" : "Campanha de reativação"}
+          onAction={() => setSelectedSegment(selectedSegment === "Perdido" ? "all" : "Perdido")}
+          className={`[animation-delay:400ms] ${selectedSegment === "Perdido" ? "ring-2 ring-destructive" : ""}`}
         />
         
         <SegmentCard
           icon={Sparkles}
           iconColor="text-success"
           title="Novos Clientes"
-          count={segments.new.length}
+          count={allSegments.new.length}
           subtitle={`${newReturned} retornaram (${newReturnRate}%)`}
-          actionLabel="Ver retenção"
-          className="[animation-delay:500ms]"
+          actionLabel={selectedSegment === "Novo" ? "Mostrando Novos" : "Ver retenção"}
+          onAction={() => setSelectedSegment(selectedSegment === "Novo" ? "all" : "Novo")}
+          className={`[animation-delay:500ms] ${selectedSegment === "Novo" ? "ring-2 ring-success" : ""}`}
         />
       </div>
 
@@ -445,12 +473,18 @@ export function ClientsTab() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-display font-semibold text-foreground">
-              {filterByPeriod ? "Clientes no Período" : "Clientes Recentes"}
+              {selectedSegment !== "all" 
+                ? `Clientes ${selectedSegment}` 
+                : filterByPeriod 
+                  ? "Clientes no Período" 
+                  : "Clientes Recentes"}
             </h3>
             <p className="text-sm text-muted-foreground">
-              {filterByPeriod 
-                ? `${format(periodStart, "dd/MM/yyyy", { locale: ptBR })} a ${format(periodEnd, "dd/MM/yyyy", { locale: ptBR })}`
-                : "Últimas movimentações"}
+              {selectedSegment !== "all"
+                ? `Filtrando por status: ${selectedSegment}`
+                : filterByPeriod 
+                  ? `${format(periodStart, "dd/MM/yyyy", { locale: ptBR })} a ${format(periodEnd, "dd/MM/yyyy", { locale: ptBR })}`
+                  : "Últimas movimentações"}
             </p>
           </div>
           <span className="text-sm text-muted-foreground">
@@ -462,9 +496,11 @@ export function ClientsTab() {
           <div className="text-center py-8 text-muted-foreground">
             <p>Nenhum cliente encontrado.</p>
             <p className="text-sm mt-1">
-              {filterByPeriod 
-                ? "Tente ajustar o período selecionado."
-                : "Os clientes aparecerão aqui após realizarem pedidos."}
+              {selectedSegment !== "all"
+                ? `Nenhum cliente com status "${selectedSegment}".`
+                : filterByPeriod 
+                  ? "Tente ajustar o período selecionado."
+                  : "Os clientes aparecerão aqui após realizarem pedidos."}
             </p>
           </div>
         ) : (
