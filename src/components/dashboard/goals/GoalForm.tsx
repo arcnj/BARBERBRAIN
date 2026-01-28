@@ -129,10 +129,9 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
     { value: "12", label: "Dezembro" }
   ];
 
-  const goalTypes = [
+  const baseGoalTypes = [
     { value: "cuts", label: "Quantidade de Cortes" },
     { value: "revenue", label: "Faturamento Total (R$)" },
-    { value: "services", label: "Serviço Específico" },
     { value: "product_sales", label: "Vendas de Produtos" }
   ];
 
@@ -156,47 +155,50 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>Tipo de Meta</Label>
-        <Select value={goalType} onValueChange={(v) => {
-          setGoalType(v as GoalType);
-          if (v !== 'services') setServiceId("");
+        <Select value={goalType === 'services' && serviceId ? `service_${serviceId}` : goalType} onValueChange={(v) => {
+          if (v.startsWith('service_')) {
+            setGoalType('services');
+            setServiceId(v.replace('service_', ''));
+          } else {
+            setGoalType(v as GoalType);
+            setServiceId("");
+          }
         }}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue placeholder="Selecione o tipo de meta" />
           </SelectTrigger>
           <SelectContent>
-            {goalTypes.map(type => (
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+              Metas Gerais
+            </div>
+            {baseGoalTypes.map(type => (
               <SelectItem key={type.value} value={type.value}>
                 {type.label}
               </SelectItem>
             ))}
+            
+            {Object.entries(servicesByCategory).length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
+                  Metas por Serviço
+                </div>
+                {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
+                  <div key={category}>
+                    <div className="px-3 py-1 text-xs text-muted-foreground italic">
+                      {category}
+                    </div>
+                    {categoryServices?.map(service => (
+                      <SelectItem key={service.id} value={`service_${service.id}`}>
+                        {service.name}
+                      </SelectItem>
+                    ))}
+                  </div>
+                ))}
+              </>
+            )}
           </SelectContent>
         </Select>
       </div>
-
-      {goalType === 'services' && (
-        <div className="space-y-2">
-          <Label>Serviço</Label>
-          <Select value={serviceId} onValueChange={setServiceId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione um serviço" />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
-                <div key={category}>
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
-                    {category}
-                  </div>
-                  {categoryServices?.map(service => (
-                    <SelectItem key={service.id} value={service.id}>
-                      {service.name} - R$ {service.price.toFixed(2)}
-                    </SelectItem>
-                  ))}
-                </div>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -230,7 +232,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>
-          {goalType === 'revenue' ? 'Valor da Meta (R$)' : 'Quantidade da Meta'}
+          {goalType === 'revenue' ? 'Valor da Meta (R$)' : `Quantidade da Meta${goalType === 'services' && serviceId ? ` (${services?.find(s => s.id === serviceId)?.name || 'Serviço'})` : ''}`}
         </Label>
         <Input
           type="number"
