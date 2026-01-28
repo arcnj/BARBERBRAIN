@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
-type GoalType = 'cuts' | 'revenue' | 'services' | 'product_sales';
+type GoalType = 'cuts' | 'revenue' | 'services';
 
 interface Barber {
   id: string;
@@ -103,8 +103,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
   const goalTypes = [
     { value: "cuts", label: "Quantidade de Cortes" },
     { value: "revenue", label: "Faturamento Total (R$)" },
-    { value: "services", label: "Quantidade de Serviços" },
-    { value: "product_sales", label: "Vendas de Produtos" }
+    { value: "services", label: "Quantidade de Serviços" }
   ];
 
   return (
