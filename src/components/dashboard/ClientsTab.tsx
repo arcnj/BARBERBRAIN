@@ -171,6 +171,7 @@ export function ClientsTab() {
       { header: "Status", key: "status", width: 12 },
       { header: "Última Visita", key: "ultima_visita", width: 15 },
       { header: "Total Gasto", key: "total_gasto", width: 18 },
+      { header: "Ticket Médio", key: "ticket_medio", width: 18 },
       { header: "Visitas", key: "visitas", width: 10 },
       { header: "Data de Nascimento", key: "nascimento", width: 15 },
     ];
@@ -189,6 +190,7 @@ export function ClientsTab() {
     
     // Add data rows
     recentClients.forEach(client => {
+      const ticketMedio = client.visits > 0 ? client.spent / client.visits : 0;
       const row = worksheet.addRow({
         nome: client.name,
         telefone: client.phone || "-",
@@ -196,12 +198,14 @@ export function ClientsTab() {
         status: client.status,
         ultima_visita: client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
         total_gasto: client.spent,
+        ticket_medio: ticketMedio,
         visitas: client.visits,
         nascimento: client.birthDate ? format(new Date(client.birthDate), "dd/MM/yyyy", { locale: ptBR }) : "-",
       });
       
-      // Apply Brazilian currency format to Total Gasto column
+      // Apply Brazilian currency format
       row.getCell('total_gasto').numFmt = '"R$" #,##0.00';
+      row.getCell('ticket_medio').numFmt = '"R$" #,##0.00';
     });
     
     // Generate and download file
@@ -213,6 +217,15 @@ export function ClientsTab() {
     link.download = `clientes-${format(new Date(), "yyyy-MM-dd")}.xlsx`;
     link.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  // Status colors for PDF (RGB values)
+  const pdfStatusColors: Record<ClientStatus, [number, number, number]> = {
+    "VIP": [212, 175, 55], // Gold
+    "Em Risco": [234, 179, 8], // Yellow/Amber
+    "Perdido": [220, 38, 38], // Red
+    "Ativo": [34, 197, 94], // Green
+    "Novo": [59, 130, 246], // Blue
   };
 
   const exportToPDF = () => {
@@ -244,32 +257,48 @@ export function ClientsTab() {
     doc.text(`Faturamento: R$ ${recentClients.reduce((s, c) => s + c.spent, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, pageWidth - 14, yPos, { align: "right" });
 
     // Clients table with requested fields
-    const tableData = recentClients.map(client => [
-      client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
-      client.name,
-      client.email || "-",
-      `R$ ${client.spent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-      client.visits.toString(),
-      client.phone || "-",
-      client.status,
-    ]);
+    const tableData = recentClients.map(client => {
+      const ticketMedio = client.visits > 0 ? client.spent / client.visits : 0;
+      return [
+        client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
+        client.name,
+        client.email || "-",
+        `R$ ${client.spent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        `R$ ${ticketMedio.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        client.visits.toString(),
+        client.phone || "-",
+        client.status,
+      ];
+    });
 
     autoTable(doc, {
       startY: yPos + 8,
-      head: [["Última Visita", "Nome", "Email", "Total Gasto", "Visitas", "Contato", "Status"]],
+      head: [["Última Visita", "Nome", "Email", "Total Gasto", "Ticket Médio", "Visitas", "Contato", "Status"]],
       body: tableData,
       theme: "striped",
-      headStyles: { fillColor: [79, 70, 229], fontSize: 9 },
-      margin: { left: 14, right: 14 },
-      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [79, 70, 229], fontSize: 8 },
+      margin: { left: 10, right: 10 },
+      styles: { fontSize: 7, cellPadding: 2 },
       columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 35 },
-        2: { cellWidth: 40 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 15 },
-        5: { cellWidth: 28 },
-        6: { cellWidth: 20 },
+        0: { cellWidth: 20 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 14 },
+        6: { cellWidth: 25 },
+        7: { cellWidth: 18 },
+      },
+      didParseCell: (data) => {
+        // Apply colors to status column (index 7)
+        if (data.section === 'body' && data.column.index === 7) {
+          const status = data.cell.raw as ClientStatus;
+          const color = pdfStatusColors[status];
+          if (color) {
+            data.cell.styles.textColor = color;
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
       },
     });
 
