@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Calendar, Users, Scissors, Megaphone, CalendarDays, UserCog, Package, Sparkles, ClipboardList, Warehouse } from "lucide-react";
+import { Calendar, Users, Scissors, Megaphone, CalendarDays, UserCog, Package, Sparkles, ClipboardList, Warehouse, Target } from "lucide-react";
 
 interface NavigationProps {
   activeTab: string;
@@ -13,6 +13,7 @@ const adminTabs = [
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "barbeiros", label: "Barbeiros", icon: UserCog },
+  { id: "metas", label: "Metas", icon: Target },
   { id: "servicos", label: "Serviços", icon: Scissors },
   { id: "produtos", label: "Produtos", icon: Package },
   { id: "estoque", label: "Estoque", icon: Warehouse },
@@ -24,6 +25,7 @@ const adminTabs = [
 const barberTabs = [
   { id: "hoje", label: "Hoje", icon: Calendar },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
+  { id: "metas", label: "Metas", icon: Target },
 ];
 
 export function Navigation({ activeTab, onTabChange, role }: NavigationProps) {
