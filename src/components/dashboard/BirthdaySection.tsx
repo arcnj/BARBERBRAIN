@@ -55,10 +55,14 @@ function formatBirthdayMessage(template: string, client: { name: string }, setti
     .replace(/{dias}/g, String(totalDays));
 }
 
-export function BirthdaySection() {
+interface BirthdaySectionProps {
+  defaultExpanded?: boolean;
+}
+
+export function BirthdaySection({ defaultExpanded = false }: BirthdaySectionProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [localSettings, setLocalSettings] = useState<BirthdaySettings | null>(null);
   
