@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommissions } from "@/hooks/useCommissions";
+import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,6 +112,7 @@ export function AgendaTab() {
   const queryClient = useQueryClient();
   const isAdmin = role === "admin";
   const { registerCommissions } = useCommissions();
+  const { updateBarberGoals } = useGoalProgress();
 
   // Fetch barber ID for current user (if they are a barber)
   const { data: currentBarber, isLoading: loadingBarber } = useQuery({
@@ -303,7 +305,7 @@ export function AgendaTab() {
 
       if (error) throw error;
 
-      // If completing an order, register commissions automatically
+      // If completing an order, register commissions and update goals automatically
       if (status === "completed" && orderData?.barber_id && orderData?.scheduled_at) {
         const serviceTotal = orderData.order_items?.reduce((sum, item) => sum + (item.price || 0), 0) || 0;
         const productTotal = orderData.order_products?.reduce((sum, item) => sum + (item.price * item.quantity || 0), 0) || 0;
@@ -317,11 +319,15 @@ export function AgendaTab() {
             productTotal
           });
         }
+
+        // Update barber goals automatically
+        await updateBarberGoals.mutateAsync(orderData.barber_id);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
       queryClient.invalidateQueries({ queryKey: ["barber-financial-records"] });
+      queryClient.invalidateQueries({ queryKey: ["barber-goals"] });
       toast.success("Status atualizado!");
       setSelectedOrder(null);
     },
