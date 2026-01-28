@@ -836,6 +836,44 @@ export function AnalystTab() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Barber Performance - moved to be after Weekly Revenue */}
+      <div className="glass rounded-xl p-5 animate-slide-up [animation-delay:650ms]">
+        <div className="flex items-center gap-2 mb-4">
+          <UserCog className="h-5 w-5 text-primary" />
+          <div>
+            <h3 className="font-display font-semibold text-foreground">Desempenho por Barbeiro</h3>
+            <p className="text-sm text-muted-foreground">Ranking do período selecionado</p>
+          </div>
+        </div>
+        
+        {barberPerformance.length === 0 ? (
+          <p className="text-muted-foreground text-center py-4">Nenhum barbeiro cadastrado</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {barberPerformance.map((barber, index) => (
+              <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
+                <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center text-primary-foreground font-display font-bold">
+                  {barber.name.charAt(0)}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground">{barber.name}</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{barber.clients} clientes</span>
+                    <span>•</span>
+                    <span>Ticket: {barber.ticket}</span>
+                  </div>
+                </div>
+                
+                <div className="text-right">
+                  <p className="font-display font-bold text-foreground">{barber.revenue}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       
       {/* Rankings Section */}
       <div className="grid gap-4 lg:grid-cols-3">
@@ -1003,44 +1041,6 @@ export function AnalystTab() {
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
-
-      {/* Barber Performance */}
-      <div className="glass rounded-xl p-5 animate-slide-up [animation-delay:1000ms]">
-        <div className="flex items-center gap-2 mb-4">
-          <UserCog className="h-5 w-5 text-primary" />
-          <div>
-            <h3 className="font-display font-semibold text-foreground">Desempenho por Barbeiro</h3>
-            <p className="text-sm text-muted-foreground">Ranking do período selecionado</p>
-          </div>
-        </div>
-        
-        {barberPerformance.length === 0 ? (
-          <p className="text-muted-foreground text-center py-4">Nenhum barbeiro cadastrado</p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {barberPerformance.map((barber, index) => (
-              <div key={index} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
-                <div className="w-10 h-10 rounded-full bg-gradient-gold flex items-center justify-center text-primary-foreground font-display font-bold">
-                  {barber.name.charAt(0)}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-foreground">{barber.name}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{barber.clients} clientes</span>
-                    <span>•</span>
-                    <span>Ticket: {barber.ticket}</span>
-                  </div>
-                </div>
-                
-                <div className="text-right">
-                  <p className="font-display font-bold text-foreground">{barber.revenue}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
