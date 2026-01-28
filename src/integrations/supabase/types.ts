@@ -14,6 +14,159 @@ export type Database = {
   }
   public: {
     Tables: {
+      barber_commission_settings: {
+        Row: {
+          barber_id: string
+          created_at: string
+          id: string
+          product_commission_percent: number
+          service_commission_percent: number
+          updated_at: string
+        }
+        Insert: {
+          barber_id: string
+          created_at?: string
+          id?: string
+          product_commission_percent?: number
+          service_commission_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          barber_id?: string
+          created_at?: string
+          id?: string
+          product_commission_percent?: number
+          service_commission_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barber_commission_settings_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: true
+            referencedRelation: "barbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barber_commission_settings_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: true
+            referencedRelation: "barbers_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      barber_financial_records: {
+        Row: {
+          amount: number
+          barber_id: string
+          created_at: string
+          description: string | null
+          id: string
+          month: number
+          record_type: string
+          reference_id: string | null
+          year: number
+        }
+        Insert: {
+          amount: number
+          barber_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          month: number
+          record_type: string
+          reference_id?: string | null
+          year: number
+        }
+        Update: {
+          amount?: number
+          barber_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          month?: number
+          record_type?: string
+          reference_id?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barber_financial_records_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barber_financial_records_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      barber_goals: {
+        Row: {
+          barber_id: string
+          completed_at: string | null
+          created_at: string
+          current_value: number
+          goal_type: Database["public"]["Enums"]["goal_type"]
+          id: string
+          month: number
+          reward_value: number
+          status: Database["public"]["Enums"]["goal_status"]
+          target_value: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          barber_id: string
+          completed_at?: string | null
+          created_at?: string
+          current_value?: number
+          goal_type: Database["public"]["Enums"]["goal_type"]
+          id?: string
+          month: number
+          reward_value: number
+          status?: Database["public"]["Enums"]["goal_status"]
+          target_value: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          barber_id?: string
+          completed_at?: string | null
+          created_at?: string
+          current_value?: number
+          goal_type?: Database["public"]["Enums"]["goal_type"]
+          id?: string
+          month?: number
+          reward_value?: number
+          status?: Database["public"]["Enums"]["goal_status"]
+          target_value?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barber_goals_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barber_goals_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       barbers: {
         Row: {
           active: boolean | null
@@ -1053,6 +1206,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "barber" | "customer"
+      goal_status: "active" | "completed" | "expired"
+      goal_type: "cuts" | "revenue" | "services" | "product_sales"
       order_status:
         | "pending"
         | "confirmed"
@@ -1187,6 +1342,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "barber", "customer"],
+      goal_status: ["active", "completed", "expired"],
+      goal_type: ["cuts", "revenue", "services", "product_sales"],
       order_status: [
         "pending",
         "confirmed",
