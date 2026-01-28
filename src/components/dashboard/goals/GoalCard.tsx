@@ -107,7 +107,31 @@ export function GoalCard({ goal, isAdmin, getGoalTypeLabel, getGoalTypeIcon }: G
               </p>
             </div>
           </div>
-          {getStatusBadge()}
+          <div className="flex items-center gap-2">
+            {isAdmin && goal.status === 'active' && (
+              <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    <Edit className="h-3.5 w-3.5 mr-1" />
+                    Editar
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Editar Meta</DialogTitle>
+                  </DialogHeader>
+                  <GoalEditForm 
+                    goal={goal}
+                    onSuccess={() => {
+                      setIsEditOpen(false);
+                      queryClient.invalidateQueries({ queryKey: ['barber-goals'] });
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+            )}
+            {getStatusBadge()}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -142,35 +166,13 @@ export function GoalCard({ goal, isAdmin, getGoalTypeLabel, getGoalTypeIcon }: G
           </p>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+        <div className="flex items-center pt-2 border-t border-border/50">
           <div className="flex items-center gap-2">
             <Trophy className={`h-4 w-4 ${isCompleted ? 'text-success' : 'text-muted-foreground'}`} />
             <span className="text-sm">
               Premiação: <span className="font-bold text-success">R$ {goal.reward_value.toFixed(2)}</span>
             </span>
           </div>
-          
-          {isAdmin && goal.status === 'active' && (
-            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Editar Meta</DialogTitle>
-                </DialogHeader>
-                <GoalEditForm 
-                  goal={goal}
-                  onSuccess={() => {
-                    setIsEditOpen(false);
-                    queryClient.invalidateQueries({ queryKey: ['barber-goals'] });
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-          )}
         </div>
 
         {isCompleted && goal.completed_at && (
