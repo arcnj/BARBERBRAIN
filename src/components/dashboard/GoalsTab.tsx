@@ -182,6 +182,8 @@ export function GoalsTab() {
 
       const isCompleted = currentValue >= goal.target_value;
       const newStatus: GoalStatus = isCompleted ? 'completed' : goal.status;
+      const progressPercent = (currentValue / goal.target_value) * 100;
+      const previousProgressPercent = (goal.current_value / goal.target_value) * 100;
 
       const { error } = await supabase
         .from('barber_goals')
@@ -211,10 +213,37 @@ export function GoalsTab() {
         if (recordError) console.error('Error creating financial record:', recordError);
       }
 
-      return { currentValue, isCompleted };
+      return { 
+        currentValue, 
+        isCompleted, 
+        progressPercent, 
+        previousProgressPercent,
+        barberName: goal.barber?.name,
+        goalType: goal.goal_type,
+        targetValue: goal.target_value,
+        rewardValue: goal.reward_value
+      };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['barber-goals'] });
+      
+      // Notify when barber reaches 80% threshold (but wasn't there before)
+      if (data.progressPercent >= 80 && data.previousProgressPercent < 80 && !data.isCompleted) {
+        toast({
+          title: "🔥 Meta quase atingida!",
+          description: `${data.barberName || 'Barbeiro'} está a ${Math.round(100 - data.progressPercent)}% de atingir a meta de ${getGoalTypeLabel(data.goalType)}! Faltam apenas ${Math.round(data.targetValue - data.currentValue)} ${data.goalType === 'revenue' ? 'reais' : 'unidades'} para ganhar R$ ${data.rewardValue.toFixed(0)}!`,
+          duration: 8000
+        });
+      }
+      
+      // Notify when goal is completed
+      if (data.isCompleted && data.previousProgressPercent < 100) {
+        toast({
+          title: "🏆 Meta atingida!",
+          description: `Parabéns! ${data.barberName || 'Barbeiro'} completou a meta de ${getGoalTypeLabel(data.goalType)} e ganhou R$ ${data.rewardValue.toFixed(0)} de premiação!`,
+          duration: 10000
+        });
+      }
     }
   });
 
