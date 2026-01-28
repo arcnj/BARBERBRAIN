@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useCommissions } from "@/hooks/useCommissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,7 @@ export function AgendaTab() {
 
   const queryClient = useQueryClient();
   const isAdmin = role === "admin";
+  const { registerCommissions } = useCommissions();
 
   // Fetch barber ID for current user (if they are a barber)
   const { data: currentBarber, isLoading: loadingBarber } = useQuery({
@@ -272,16 +274,37 @@ export function AgendaTab() {
 
   // Update order status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string; status: OrderStatus }) => {
+    mutationFn: async ({ orderId, status, orderData }: { 
+      orderId: string; 
+      status: OrderStatus;
+      orderData?: Order;
+    }) => {
       const { error } = await supabase
         .from("orders")
         .update({ status })
         .eq("id", orderId);
 
       if (error) throw error;
+
+      // If completing an order, register commissions automatically
+      if (status === "completed" && orderData?.barber_id && orderData?.scheduled_at) {
+        const serviceTotal = orderData.order_items?.reduce((sum, item) => sum + (item.price || 0), 0) || 0;
+        const productTotal = orderData.order_products?.reduce((sum, item) => sum + (item.price * item.quantity || 0), 0) || 0;
+
+        if (serviceTotal > 0 || productTotal > 0) {
+          await registerCommissions.mutateAsync({
+            orderId,
+            barberId: orderData.barber_id,
+            scheduledAt: orderData.scheduled_at,
+            serviceTotal,
+            productTotal
+          });
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["barber-financial-records"] });
       toast.success("Status atualizado!");
       setSelectedOrder(null);
     },
@@ -449,7 +472,13 @@ export function AgendaTab() {
     if (!confirmAction) return;
     
     if (confirmAction.type === "complete") {
-      updateStatusMutation.mutate({ orderId: confirmAction.orderId, status: "completed" });
+      // Find the order data to pass for commission calculation
+      const orderData = allOrders?.find(o => o.id === confirmAction.orderId);
+      updateStatusMutation.mutate({ 
+        orderId: confirmAction.orderId, 
+        status: "completed",
+        orderData 
+      });
     } else {
       updateStatusMutation.mutate({ orderId: confirmAction.orderId, status: "cancelled" });
     }
@@ -991,7 +1020,11 @@ export function AgendaTab() {
                   )}
                   {selectedOrder.status === "in_progress" && (
                     <Button
-                      onClick={() => updateStatusMutation.mutate({ orderId: selectedOrder.id, status: "completed" })}
+                      onClick={() => updateStatusMutation.mutate({ 
+                        orderId: selectedOrder.id, 
+                        status: "completed",
+                        orderData: selectedOrder 
+                      })}
                       disabled={updateStatusMutation.isPending}
                     >
                       Concluir

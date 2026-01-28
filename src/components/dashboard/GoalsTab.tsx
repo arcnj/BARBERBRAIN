@@ -12,13 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Target, Plus, Trophy, TrendingUp, DollarSign, Scissors, Package, Award, Medal, Crown } from "lucide-react";
+import { Target, Plus, Trophy, TrendingUp, DollarSign, Scissors, Package, Award, Medal, Crown, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { GoalCard } from "./goals/GoalCard";
 import { GoalForm } from "./goals/GoalForm";
 import { BarberStatement } from "./goals/BarberStatement";
 import { GoalsRanking } from "./goals/GoalsRanking";
+import { CommissionSettings } from "./goals/CommissionSettings";
 
 type GoalType = 'cuts' | 'revenue' | 'services' | 'product_sales';
 type GoalStatus = 'active' | 'completed' | 'expired';
@@ -308,7 +309,7 @@ export function GoalsTab() {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="goals" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
             Metas
@@ -321,6 +322,12 @@ export function GoalsTab() {
             <DollarSign className="h-4 w-4" />
             Extrato
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="commissions" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Comissões
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="goals" className="mt-6">
@@ -480,6 +487,12 @@ export function GoalsTab() {
             isAdmin={isAdmin}
           />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="commissions" className="mt-6">
+            <CommissionSettings barbers={barbers || []} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
