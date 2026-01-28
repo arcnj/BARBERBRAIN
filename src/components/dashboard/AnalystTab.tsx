@@ -466,9 +466,14 @@ export function AnalystTab() {
   const monthsOfYear = eachMonthOfInterval({ start: startOfYear(now), end: now });
   const birthdayEvolutionData = monthsOfYear.map(month => {
     const monthIndex = getMonth(month);
+    const targetYear = month.getFullYear();
+    
     const monthCoupons = allBirthdayCoupons?.filter(c => {
       const createdDate = new Date(c.created_at);
-      return getMonth(createdDate) === monthIndex;
+      const createdMonth = getMonth(createdDate);
+      const createdYear = createdDate.getFullYear();
+      // Match both month AND year to ensure correct grouping
+      return createdMonth === monthIndex && createdYear === targetYear;
     }) || [];
     
     const created = monthCoupons.length;
