@@ -982,6 +982,7 @@ export function AnalystTab() {
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                 />
                 <Tooltip 
+                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
                     border: '1px solid hsl(var(--border))',
