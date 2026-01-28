@@ -1,12 +1,13 @@
 import { StatCard } from "@/components/ui/stat-card";
 import { AlertCard } from "@/components/ui/alert-card";
-import { DollarSign, Users, Clock, TrendingUp, UserX, Loader2 } from "lucide-react";
+import { DollarSign, Users, Clock, TrendingUp, UserX, Loader2, Cake, Gift } from "lucide-react";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Badge } from "@/components/ui/badge";
 
 export function TodayTab() {
   const { user, role } = useAuth();
@@ -95,6 +96,45 @@ export function TodayTab() {
     },
     staleTime: 60000,
     enabled: isAdmin || !!barberId,
+  });
+
+  // Fetch today's birthdays
+  const todayMonth = today.getMonth() + 1; // JS months are 0-indexed
+  const todayDay = today.getDate();
+  
+  const { data: todayBirthdays } = useQuery({
+    queryKey: ["today-birthdays", todayMonth, todayDay],
+    queryFn: async () => {
+      // First get all customer user_ids
+      const { data: customerRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "customer");
+      
+      if (rolesError) throw rolesError;
+      if (!customerRoles?.length) return [];
+
+      const customerIds = customerRoles.map(r => r.user_id);
+
+      // Get profiles with birthdays
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, phone, birth_date")
+        .in("user_id", customerIds)
+        .not("birth_date", "is", null);
+
+      if (profilesError) throw profilesError;
+      if (!profiles) return [];
+
+      // Filter profiles with birthday today (matching month and day)
+      return profiles.filter(profile => {
+        if (!profile.birth_date) return false;
+        const birthDate = new Date(profile.birth_date);
+        return birthDate.getMonth() + 1 === todayMonth && birthDate.getDate() === todayDay;
+      });
+    },
+    staleTime: 60000,
+    enabled: isAdmin,
   });
 
   // Calculate stats
@@ -205,6 +245,51 @@ export function TodayTab() {
           <p className="text-sm text-primary mt-1">Mostrando apenas seus atendimentos</p>
         )}
       </div>
+      
+      {/* Birthday Alert */}
+      {isAdmin && todayBirthdays && todayBirthdays.length > 0 && (
+        <div className="glass rounded-xl p-4 border-l-4 border-l-yellow-500 animate-fade-in bg-gradient-to-r from-yellow-500/10 to-transparent">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-full bg-yellow-500/20">
+              <Cake className="h-5 w-5 text-yellow-500" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-semibold text-foreground">
+                  🎂 Aniversariantes do Dia!
+                </h3>
+                <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600">
+                  {todayBirthdays.length} {todayBirthdays.length === 1 ? "cliente" : "clientes"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Não esqueça de parabenizar seus clientes especiais!
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {todayBirthdays.map((birthday) => (
+                  <div 
+                    key={birthday.id}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-background/50 border"
+                  >
+                    <Gift className="h-3.5 w-3.5 text-yellow-500" />
+                    <span className="text-sm font-medium">{birthday.full_name}</span>
+                    {birthday.phone && (
+                      <a 
+                        href={`https://wa.me/55${birthday.phone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline"
+                      >
+                        WhatsApp
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Alerts */}
       {confirmedOrders.length === 0 && (
