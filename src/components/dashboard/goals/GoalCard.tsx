@@ -108,7 +108,7 @@ export function GoalCard({ goal, isAdmin, getGoalTypeLabel, getGoalTypeIcon }: G
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin && goal.status === 'active' && (
+            {isAdmin && (
               <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="h-8">
