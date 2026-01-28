@@ -36,11 +36,17 @@ interface BarberGoal {
   status: GoalStatus;
   completed_at: string | null;
   created_at: string;
+  service_id?: string | null;
   barber?: {
     id: string;
     name: string;
     avatar_url: string | null;
   };
+  service?: {
+    id: string;
+    name: string;
+    category: string;
+  } | null;
 }
 
 export function GoalsTab() {
@@ -92,7 +98,8 @@ export function GoalsTab() {
         .from('barber_goals')
         .select(`
           *,
-          barber:barbers(id, name, avatar_url)
+          barber:barbers(id, name, avatar_url),
+          service:services(id, name, category)
         `)
         .order('created_at', { ascending: false });
 
@@ -261,11 +268,14 @@ export function GoalsTab() {
     });
   };
 
-  const getGoalTypeLabel = (type: GoalType) => {
+  const getGoalTypeLabel = (type: GoalType, serviceName?: string) => {
+    if (type === 'services' && serviceName) {
+      return serviceName;
+    }
     const labels: Record<GoalType, string> = {
       cuts: 'Quantidade de Cortes',
       revenue: 'Faturamento (R$)',
-      services: 'Quantidade de Serviços',
+      services: 'Serviço Específico',
       product_sales: 'Vendas de Produtos'
     };
     return labels[type];

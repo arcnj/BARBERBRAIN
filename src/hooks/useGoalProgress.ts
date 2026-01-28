@@ -16,10 +16,15 @@ interface BarberGoal {
   year: number;
   status: GoalStatus;
   completed_at: string | null;
+  service_id?: string | null;
   barber?: { name: string } | null;
+  service?: { name: string } | null;
 }
 
-const getGoalTypeLabel = (type: GoalType): string => {
+const getGoalTypeLabel = (type: GoalType, serviceName?: string): string => {
+  if (type === "services" && serviceName) {
+    return serviceName;
+  }
   const labels: Record<GoalType, string> = {
     cuts: "Cortes",
     revenue: "Faturamento",
@@ -37,7 +42,8 @@ export function useGoalProgress() {
     barberId: string,
     goalType: GoalType,
     month: number,
-    year: number
+    year: number,
+    serviceId?: string | null
   ) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -67,16 +73,33 @@ export function useGoalProgress() {
 
       value = data?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
     } else if (goalType === "services") {
-      // Count all services
-      const { data } = await supabase
-        .from("orders")
-        .select("id")
-        .eq("barber_id", barberId)
-        .eq("status", "completed")
-        .gte("scheduled_at", startDate.toISOString())
-        .lte("scheduled_at", endDate.toISOString());
+      // Count specific service completions
+      if (serviceId) {
+        const { data } = await supabase
+          .from("order_items")
+          .select(`
+            id,
+            order:orders!inner(barber_id, status, scheduled_at)
+          `)
+          .eq("service_id", serviceId)
+          .eq("order.barber_id", barberId)
+          .eq("order.status", "completed")
+          .gte("order.scheduled_at", startDate.toISOString())
+          .lte("order.scheduled_at", endDate.toISOString());
 
-      value = data?.length || 0;
+        value = data?.length || 0;
+      } else {
+        // Generic service count (all services)
+        const { data } = await supabase
+          .from("orders")
+          .select("id")
+          .eq("barber_id", barberId)
+          .eq("status", "completed")
+          .gte("scheduled_at", startDate.toISOString())
+          .lte("scheduled_at", endDate.toISOString());
+
+        value = data?.length || 0;
+      }
     } else if (goalType === "product_sales") {
       // Count product sales
       const { data } = await supabase
@@ -111,7 +134,8 @@ export function useGoalProgress() {
       goal.barber_id,
       goal.goal_type,
       goal.month,
-      goal.year
+      goal.year,
+      goal.service_id
     );
 
     const isCompleted = currentValue >= goal.target_value;
@@ -157,6 +181,7 @@ export function useGoalProgress() {
       previousProgressPercent,
       barberName: goal.barber?.name,
       goalType: goal.goal_type,
+      serviceName: goal.service?.name,
       targetValue: goal.target_value,
       rewardValue: goal.reward_value,
     };
@@ -174,7 +199,8 @@ export function useGoalProgress() {
         .from("barber_goals")
         .select(`
           *,
-          barber:barbers(name)
+          barber:barbers(name),
+          service:services(name)
         `)
         .eq("barber_id", barberId)
         .eq("status", "active")
@@ -197,16 +223,18 @@ export function useGoalProgress() {
 
       // Show notifications for significant progress
       results.forEach((data) => {
+        const goalLabel = getGoalTypeLabel(data.goalType, data.serviceName);
+        
         if (data.progressPercent >= 80 && data.previousProgressPercent < 80 && !data.isCompleted) {
           toast.info(
-            `🔥 ${data.barberName || "Barbeiro"} está a ${Math.round(100 - data.progressPercent)}% de atingir a meta de ${getGoalTypeLabel(data.goalType)}!`,
+            `🔥 ${data.barberName || "Barbeiro"} está a ${Math.round(100 - data.progressPercent)}% de atingir a meta de ${goalLabel}!`,
             { duration: 6000 }
           );
         }
 
         if (data.isCompleted && data.previousProgressPercent < 100) {
           toast.success(
-            `🏆 ${data.barberName || "Barbeiro"} completou a meta de ${getGoalTypeLabel(data.goalType)} e ganhou R$ ${data.rewardValue.toFixed(0)}!`,
+            `🏆 ${data.barberName || "Barbeiro"} completou a meta de ${goalLabel} e ganhou R$ ${data.rewardValue.toFixed(0)}!`,
             { duration: 8000 }
           );
         }

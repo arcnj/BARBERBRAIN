@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 
-type GoalType = 'cuts' | 'revenue' | 'services';
+type GoalType = 'cuts' | 'revenue' | 'services' | 'product_sales';
 
 interface Barber {
   id: string;
@@ -27,15 +27,43 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
   const [barberId, setBarberId] = useState("");
   const [goalType, setGoalType] = useState<GoalType>("cuts");
+  const [serviceId, setServiceId] = useState<string>("");
   const [targetValue, setTargetValue] = useState("");
   const [rewardValue, setRewardValue] = useState("");
   const [month, setMonth] = useState(currentMonth.toString());
   const [year, setYear] = useState(currentYear.toString());
 
+  // Fetch all active services
+  const { data: services } = useQuery({
+    queryKey: ['services-for-goals'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('services')
+        .select('id, name, category, price')
+        .eq('active', true)
+        .order('category')
+        .order('name');
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Group services by category
+  const servicesByCategory = services?.reduce((acc, service) => {
+    const category = service.category || 'Outros';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(service);
+    return acc;
+  }, {} as Record<string, typeof services>) || {};
+
   const createGoal = useMutation({
     mutationFn: async () => {
       if (!barberId || !targetValue || !rewardValue) {
         throw new Error("Preencha todos os campos obrigatórios");
+      }
+
+      if (goalType === 'services' && !serviceId) {
+        throw new Error("Selecione um serviço para a meta");
       }
 
       const target = parseFloat(targetValue);
@@ -54,6 +82,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
         .insert({
           barber_id: barberId,
           goal_type: goalType,
+          service_id: goalType === 'services' ? serviceId : null,
           target_value: target,
           reward_value: reward,
           month: parseInt(month),
@@ -64,7 +93,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       if (error) {
         if (error.code === '23505') {
-          throw new Error("Já existe uma meta para este barbeiro neste mês");
+          throw new Error("Já existe uma meta similar para este barbeiro neste mês");
         }
         throw error;
       }
@@ -103,7 +132,8 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
   const goalTypes = [
     { value: "cuts", label: "Quantidade de Cortes" },
     { value: "revenue", label: "Faturamento Total (R$)" },
-    { value: "services", label: "Quantidade de Serviços" }
+    { value: "services", label: "Serviço Específico" },
+    { value: "product_sales", label: "Vendas de Produtos" }
   ];
 
   return (
@@ -126,7 +156,10 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>Tipo de Meta</Label>
-        <Select value={goalType} onValueChange={(v) => setGoalType(v as GoalType)}>
+        <Select value={goalType} onValueChange={(v) => {
+          setGoalType(v as GoalType);
+          if (v !== 'services') setServiceId("");
+        }}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
@@ -139,6 +172,31 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
           </SelectContent>
         </Select>
       </div>
+
+      {goalType === 'services' && (
+        <div className="space-y-2">
+          <Label>Serviço</Label>
+          <Select value={serviceId} onValueChange={setServiceId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione um serviço" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
+                <div key={category}>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                    {category}
+                  </div>
+                  {categoryServices?.map(service => (
+                    <SelectItem key={service.id} value={service.id}>
+                      {service.name} - R$ {service.price.toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -172,8 +230,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>
-          Valor da Meta 
-          {goalType === 'revenue' ? ' (R$)' : ' (quantidade)'}
+          {goalType === 'revenue' ? 'Valor da Meta (R$)' : 'Quantidade da Meta'}
         </Label>
         <Input
           type="number"

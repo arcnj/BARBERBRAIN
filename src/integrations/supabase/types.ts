@@ -117,6 +117,7 @@ export type Database = {
           id: string
           month: number
           reward_value: number
+          service_id: string | null
           status: Database["public"]["Enums"]["goal_status"]
           target_value: number
           updated_at: string
@@ -131,6 +132,7 @@ export type Database = {
           id?: string
           month: number
           reward_value: number
+          service_id?: string | null
           status?: Database["public"]["Enums"]["goal_status"]
           target_value: number
           updated_at?: string
@@ -145,6 +147,7 @@ export type Database = {
           id?: string
           month?: number
           reward_value?: number
+          service_id?: string | null
           status?: Database["public"]["Enums"]["goal_status"]
           target_value?: number
           updated_at?: string
@@ -163,6 +166,13 @@ export type Database = {
             columns: ["barber_id"]
             isOneToOne: false
             referencedRelation: "barbers_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "barber_goals_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
             referencedColumns: ["id"]
           },
         ]
