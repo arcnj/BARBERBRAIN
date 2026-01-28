@@ -198,6 +198,23 @@ export function AgendaTab() {
     enabled: isAdmin || !!barberId,
   });
 
+  // Get next upcoming appointment for the selected day
+  const nextAppointment = useMemo(() => {
+    if (!allOrders) return null;
+
+    const referenceTime = isToday(selectedDate) ? new Date() : startOfDay(selectedDate);
+
+    const upcoming = allOrders
+      .filter(
+        (o) =>
+          new Date(o.scheduled_at) >= referenceTime &&
+          !["completed", "cancelled"].includes(o.status),
+      )
+      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+
+    return upcoming[0] || null;
+  }, [allOrders, selectedDate]);
+
   // Group orders by hour slot
   const ordersBySlot = useMemo(() => {
     const grouped: Record<string, Order[]> = {};
@@ -442,23 +459,6 @@ export function AgendaTab() {
 
   const pendingCount = allOrders?.filter(o => ["pending", "confirmed", "in_progress"].includes(o.status)).length || 0;
   const completedCount = allOrders?.filter(o => o.status === "completed").length || 0;
-
-  // Get next upcoming appointment for the selected day
-  const nextAppointment = useMemo(() => {
-    if (!allOrders) return null;
-
-    const referenceTime = isToday(selectedDate) ? new Date() : startOfDay(selectedDate);
-
-    const upcoming = allOrders
-      .filter(
-        (o) =>
-          new Date(o.scheduled_at) >= referenceTime &&
-          !["completed", "cancelled"].includes(o.status),
-      )
-      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
-
-    return upcoming[0] || null;
-  }, [allOrders, selectedDate]);
 
   // Check if it's the customer's birthday
   const isBirthday = (birthDate: string | null | undefined) => {
