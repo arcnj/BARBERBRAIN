@@ -982,14 +982,16 @@ export function AnalystTab() {
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                 />
                 <Tooltip 
-                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
+                  cursor={{ fill: 'hsl(220, 15%, 18%)', opacity: 0.3 }}
                   contentStyle={{ 
-                    backgroundColor: 'hsl(var(--card))', 
-                    border: '1px solid hsl(var(--border))',
+                    backgroundColor: '#1a1d24', 
+                    border: '1px solid #2a2f3a',
                     borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    color: '#f5f0e8'
                   }}
-                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  labelStyle={{ color: '#f5f0e8' }}
+                  itemStyle={{ color: '#f5f0e8' }}
                 />
                 <Legend 
                   wrapperStyle={{ paddingTop: '10px' }}
