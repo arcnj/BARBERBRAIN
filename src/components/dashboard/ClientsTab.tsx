@@ -227,111 +227,47 @@ export function ClientsTab() {
     if (filterByPeriod) {
       doc.text(`Período: ${format(periodStart, "dd/MM/yyyy", { locale: ptBR })} a ${format(periodEnd, "dd/MM/yyyy", { locale: ptBR })}`, pageWidth / 2, 34, { align: "center" });
     }
-
-    // Summary section
-    let yPos = 45;
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Resumo", 14, yPos);
     
-    yPos += 8;
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    
-    const summaryData = [
-      ["Total de Clientes", filteredCustomers.length.toString()],
-      ["Clientes VIP", `${allSegments.vip.length} (${vipPercentage}% do faturamento)`],
-      ["Clientes Em Risco", `${allSegments.atRisk.length} (R$ ${atRiskRevenue.toLocaleString("pt-BR")} em risco)`],
-      ["Clientes Perdidos", allSegments.lost.length.toString()],
-      ["Novos Clientes", `${allSegments.new.length} (${newReturnRate}% retornaram)`],
-      ["Clientes Ativos", allSegments.active.length.toString()],
-      ["Faturamento Total", `R$ ${totalRevenue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`],
-    ];
+    if (selectedSegment !== "all") {
+      doc.text(`Filtro: ${selectedSegment}`, pageWidth / 2, filterByPeriod ? 40 : 34, { align: "center" });
+    }
 
-    autoTable(doc, {
-      startY: yPos,
-      head: [["Métrica", "Valor"]],
-      body: summaryData,
-      theme: "striped",
-      headStyles: { fillColor: [79, 70, 229] },
-      margin: { left: 14, right: 14 },
-    });
-
-    // Clients table
-    yPos = (doc as any).lastAutoTable.finalY + 15;
-    doc.setFontSize(14);
+    // Summary
+    let yPos = filterByPeriod ? (selectedSegment !== "all" ? 50 : 44) : (selectedSegment !== "all" ? 44 : 38);
+    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text("Lista de Clientes", 14, yPos);
+    doc.text(`Total: ${recentClients.length} clientes`, 14, yPos);
+    doc.text(`Faturamento: R$ ${recentClients.reduce((s, c) => s + c.spent, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, pageWidth - 14, yPos, { align: "right" });
 
+    // Clients table with requested fields
     const tableData = recentClients.map(client => [
-      client.name,
-      client.phone || "-",
-      client.status,
       client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
+      client.name,
+      client.email || "-",
       `R$ ${client.spent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
       client.visits.toString(),
+      client.phone || "-",
     ]);
 
     autoTable(doc, {
-      startY: yPos + 5,
-      head: [["Nome", "Telefone", "Status", "Última Visita", "Total Gasto", "Visitas"]],
+      startY: yPos + 8,
+      head: [["Última Visita", "Nome", "Email", "Total Gasto", "Visitas", "Contato"]],
       body: tableData,
       theme: "striped",
-      headStyles: { fillColor: [79, 70, 229] },
+      headStyles: { fillColor: [79, 70, 229], fontSize: 9 },
       margin: { left: 14, right: 14 },
-      styles: { fontSize: 8 },
+      styles: { fontSize: 8, cellPadding: 3 },
       columnStyles: {
-        0: { cellWidth: 40 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 30 },
-        5: { cellWidth: 20 },
+        0: { cellWidth: 25 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 18 },
+        5: { cellWidth: 30 },
       },
     });
 
-    // Segment details
-    const addSegmentPage = (title: string, clients: ClientWithMetrics[], color: [number, number, number]) => {
-      if (clients.length === 0) return;
-      
-      doc.addPage();
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text(title, 14, 20);
-      
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Total: ${clients.length} clientes`, 14, 28);
-      doc.text(`Faturamento: R$ ${clients.reduce((s, c) => s + c.spent, 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 34);
-
-      const segmentData = clients.map(client => [
-        client.name,
-        client.phone || "-",
-        client.email || "-",
-        client.lastVisitDate ? format(client.lastVisitDate, "dd/MM/yyyy", { locale: ptBR }) : "Nunca",
-        `R$ ${client.spent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-        client.visits.toString(),
-        client.birthDate ? format(new Date(client.birthDate), "dd/MM", { locale: ptBR }) : "-",
-      ]);
-
-      autoTable(doc, {
-        startY: 42,
-        head: [["Nome", "Telefone", "Email", "Última Visita", "Total Gasto", "Visitas", "Aniversário"]],
-        body: segmentData,
-        theme: "striped",
-        headStyles: { fillColor: color },
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 8 },
-      });
-    };
-
-    addSegmentPage("Clientes VIP", allSegments.vip, [79, 70, 229]);
-    addSegmentPage("Clientes Em Risco", allSegments.atRisk, [234, 179, 8]);
-    addSegmentPage("Clientes Perdidos", allSegments.lost, [220, 38, 38]);
-    addSegmentPage("Novos Clientes", allSegments.new, [59, 130, 246]);
-    addSegmentPage("Clientes Ativos", allSegments.active, [34, 197, 94]);
-
-    doc.save(`relatorio-clientes-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    doc.save(`clientes-${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
 
   if (loadingCustomers) {
