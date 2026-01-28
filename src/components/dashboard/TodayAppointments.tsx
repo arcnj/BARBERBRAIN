@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCommissions } from "@/hooks/useCommissions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -87,10 +88,30 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
     cancelReason?: string;
   } | null>(null);
 
+  const { registerCommissions } = useCommissions();
+
   // Filter only active orders (not completed or cancelled)
   const activeOrders = orders.filter(o => 
     ["pending", "confirmed", "in_progress"].includes(o.status)
   );
+
+  // Helper function to calculate totals and register commissions
+  const registerOrderCommissions = async (order: Order) => {
+    if (!order.barber_id) return;
+    
+    const serviceTotal = order.order_items?.reduce((sum, item) => sum + (item.price || 0), 0) || 0;
+    const productTotal = order.order_products?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0) || 0;
+    
+    if (serviceTotal > 0 || productTotal > 0) {
+      await registerCommissions.mutateAsync({
+        orderId: order.id,
+        barberId: order.barber_id,
+        scheduledAt: order.scheduled_at,
+        serviceTotal,
+        productTotal,
+      });
+    }
+  };
 
   // Update order status mutation
   const updateStatusMutation = useMutation({
@@ -101,6 +122,14 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
         .eq("id", orderId);
 
       if (error) throw error;
+      
+      // Register commissions when completing an order
+      if (status === "completed") {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          await registerOrderCommissions(order);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
@@ -120,6 +149,16 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
         .in("id", orderIds);
 
       if (error) throw error;
+      
+      // Register commissions for all completed orders
+      if (status === "completed") {
+        for (const orderId of orderIds) {
+          const order = orders.find(o => o.id === orderId);
+          if (order) {
+            await registerOrderCommissions(order);
+          }
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
