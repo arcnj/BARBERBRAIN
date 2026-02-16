@@ -949,6 +949,7 @@ export type Database = {
       services: {
         Row: {
           active: boolean | null
+          categories: string[] | null
           category: string
           created_at: string
           description: string | null
@@ -959,6 +960,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
+          categories?: string[] | null
           category: string
           created_at?: string
           description?: string | null
@@ -969,6 +971,7 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
+          categories?: string[] | null
           category?: string
           created_at?: string
           description?: string | null

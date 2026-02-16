@@ -22,6 +22,7 @@ interface Service {
   price: number;
   duration_minutes: number | null;
   category: string;
+  categories: string[];
   active: boolean;
 }
 
@@ -61,6 +62,7 @@ export function ServicesTab() {
     price: "",
     duration_minutes: "30",
     category: "Cabelo",
+    categories: ["Cabelo"] as string[],
     active: true
   });
   const [comboFormData, setComboFormData] = useState({
@@ -148,6 +150,7 @@ export function ServicesTab() {
         price: parseFloat(formData.price),
         duration_minutes: parseInt(formData.duration_minutes) || 30,
         category: formData.category,
+        categories: formData.categories,
         active: formData.active
       };
 
@@ -265,12 +268,14 @@ export function ServicesTab() {
 
   const handleEdit = (service: Service) => {
     setEditingService(service);
+    const svcCategories = (service as any).categories?.length > 0 ? (service as any).categories : [service.category];
     setFormData({
       name: service.name,
       description: service.description || "",
       price: service.price.toString(),
       duration_minutes: (service.duration_minutes || 30).toString(),
       category: service.category,
+      categories: svcCategories,
       active: service.active
     });
     setDialogOpen(true);
@@ -363,6 +368,7 @@ export function ServicesTab() {
       price: "",
       duration_minutes: "30",
       category: "Cabelo",
+      categories: ["Cabelo"],
       active: true
     });
   };
@@ -519,22 +525,38 @@ export function ServicesTab() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="category">Categoria *</Label>
-                    <Select
-                      value={formData.category}
-                      onValueChange={(value) => setFormData({ ...formData, category: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
+                    <Label>Categorias *</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {categories.map((cat) => {
+                        const isSelected = formData.categories.includes(cat);
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              const newCategories = isSelected
+                                ? formData.categories.filter(c => c !== cat)
+                                : [...formData.categories, cat];
+                              if (newCategories.length === 0) return; // At least one required
+                              setFormData({
+                                ...formData,
+                                categories: newCategories,
+                                category: newCategories[0] // Primary category = first selected
+                              });
+                            }}
+                            className={cn(
+                              "px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                            )}
+                          >
                             {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Selecione uma ou mais categorias</p>
                   </div>
 
                   <div className="flex items-center gap-2">

@@ -39,7 +39,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('services')
-        .select('id, name, category, price')
+        .select('id, name, category, price, categories')
         .eq('active', true)
         .order('category')
         .order('name');
@@ -50,9 +50,14 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
   // Group services by category
   const servicesByCategory = services?.reduce((acc, service) => {
-    const category = service.category || 'Outros';
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(service);
+    const cats = (service as any).categories?.length > 0 ? (service as any).categories : [service.category || 'Outros'];
+    for (const cat of cats) {
+      if (!acc[cat]) acc[cat] = [];
+      // Avoid duplicates
+      if (!acc[cat].some((s: any) => s.id === service.id)) {
+        acc[cat].push(service);
+      }
+    }
     return acc;
   }, {} as Record<string, typeof services>) || {};
 
