@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format, addDays, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
+import { format, addDays, addMinutes, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift, Cake, Percent, BadgeDollarSign, MessageCircle } from "lucide-react";
 
@@ -136,7 +136,7 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
     if (selectedDate && preferredBarber) {
       fetchAvailableSlots(selectedDate);
     }
-  }, [selectedDate, preferredBarber]);
+  }, [selectedDate, preferredBarber, selectedServices]);
 
   // Reset date and time when barber changes
   const handleBarberChange = (barberId: string) => {
@@ -202,14 +202,22 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
     setSelectedTime("");
 
     try {
-      // Get all orders for the selected date
+      // Get all orders for the selected date with service durations
       const startOfSelectedDay = startOfDay(date);
       const endOfSelectedDay = new Date(startOfSelectedDay);
       endOfSelectedDay.setDate(endOfSelectedDay.getDate() + 1);
 
       let query = supabase
         .from("orders")
-        .select("scheduled_at, barber_id")
+        .select(`
+          scheduled_at,
+          barber_id,
+          order_items (
+            services (
+              duration_minutes
+            )
+          )
+        `)
         .gte("scheduled_at", startOfSelectedDay.toISOString())
         .lt("scheduled_at", endOfSelectedDay.toISOString())
         .in("status", ["pending", "confirmed", "in_progress"]);
@@ -223,29 +231,39 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
 
       if (error) throw error;
 
+      // Calculate total duration for the services being booked
+      const currentServiceDuration = selectedServices.reduce((total, serviceId) => {
+        const service = services.find(s => s.id === serviceId);
+        return total + (service?.duration_minutes || 30);
+      }, 0) || 30;
+
       // Generate all possible time slots
       const slots: TimeSlot[] = [];
       const now = new Date();
-      const bookedTimes = new Set(
-        (bookedOrders || [])
-          .filter(order => order.scheduled_at)
-          .map(order => format(new Date(order.scheduled_at!), "HH:mm"))
-      );
 
       for (let hour = OPENING_HOUR; hour < CLOSING_HOUR; hour++) {
         for (let min = 0; min < 60; min += SLOT_DURATION_MINUTES) {
           const slotTime = setMinutes(setHours(date, hour), min);
+          const slotEnd = addMinutes(slotTime, currentServiceDuration);
           const timeString = format(slotTime, "HH:mm");
 
           // Check if slot is in the past
           const isPast = isSameDay(date, now) && isBefore(slotTime, now);
           
-          // Check if slot is already booked
-          const isBooked = bookedTimes.has(timeString);
+          // Check if slot conflicts with any existing booking (considering duration overlap)
+          const hasConflict = (bookedOrders || []).some(order => {
+            if (!order.scheduled_at) return false;
+            const orderStart = new Date(order.scheduled_at);
+            const orderDuration = order.order_items?.[0]?.services?.duration_minutes || 30;
+            const orderEnd = addMinutes(orderStart, orderDuration);
+
+            // Check for any overlap between [slotTime, slotEnd) and [orderStart, orderEnd)
+            return slotTime < orderEnd && slotEnd > orderStart;
+          });
 
           slots.push({
             time: timeString,
-            available: !isPast && !isBooked,
+            available: !isPast && !hasConflict,
           });
         }
       }
