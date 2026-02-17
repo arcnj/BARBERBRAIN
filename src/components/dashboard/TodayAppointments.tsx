@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCommissions } from "@/hooks/useCommissions";
+import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -89,6 +90,7 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
   } | null>(null);
 
   const { registerCommissions } = useCommissions();
+  const { updateBarberGoals } = useGoalProgress();
 
   // Filter only active orders (not completed or cancelled)
   const activeOrders = orders.filter(o => 
@@ -123,11 +125,16 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
 
       if (error) throw error;
       
-      // Register commissions when completing an order
+      // Register commissions and update goals when completing an order
       if (status === "completed") {
         const order = orders.find(o => o.id === orderId);
         if (order) {
           await registerOrderCommissions(order);
+          // Update barber goals progress
+          const barberId = order.barber_id;
+          if (barberId) {
+            updateBarberGoals.mutate(barberId);
+          }
         }
       }
     },
@@ -150,13 +157,19 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
 
       if (error) throw error;
       
-      // Register commissions for all completed orders
+      // Register commissions and update goals for all completed orders
       if (status === "completed") {
+        const barberIds = new Set<string>();
         for (const orderId of orderIds) {
           const order = orders.find(o => o.id === orderId);
           if (order) {
             await registerOrderCommissions(order);
+            if (order.barber_id) barberIds.add(order.barber_id);
           }
+        }
+        // Update goals for each unique barber
+        for (const barberId of barberIds) {
+          updateBarberGoals.mutate(barberId);
         }
       }
     },
