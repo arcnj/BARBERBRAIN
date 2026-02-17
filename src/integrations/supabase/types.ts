@@ -117,6 +117,7 @@ export type Database = {
           id: string
           month: number
           reward_value: number
+          service_category: string | null
           service_id: string | null
           status: Database["public"]["Enums"]["goal_status"]
           target_value: number
@@ -132,6 +133,7 @@ export type Database = {
           id?: string
           month: number
           reward_value: number
+          service_category?: string | null
           service_id?: string | null
           status?: Database["public"]["Enums"]["goal_status"]
           target_value: number
@@ -147,6 +149,7 @@ export type Database = {
           id?: string
           month?: number
           reward_value?: number
+          service_category?: string | null
           service_id?: string | null
           status?: Database["public"]["Enums"]["goal_status"]
           target_value?: number

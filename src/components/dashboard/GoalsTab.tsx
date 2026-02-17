@@ -268,7 +268,10 @@ export function GoalsTab() {
     });
   };
 
-  const getGoalTypeLabel = (type: GoalType, serviceName?: string) => {
+  const getGoalTypeLabel = (type: GoalType, serviceName?: string, serviceCategory?: string | null) => {
+    if (type === 'services' && serviceCategory) {
+      return `Categoria: ${serviceCategory}`;
+    }
     if (type === 'services' && serviceName) {
       return serviceName;
     }
