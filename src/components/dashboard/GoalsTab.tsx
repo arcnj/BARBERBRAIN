@@ -37,6 +37,7 @@ interface BarberGoal {
   completed_at: string | null;
   created_at: string;
   service_id?: string | null;
+  service_category?: string | null;
   barber?: {
     id: string;
     name: string;
@@ -110,32 +111,70 @@ export function GoalsTab() {
   });
 
   // Calculate goal progress from real data
-  const calculateGoalProgress = async (barberId: string, goalType: GoalType, month: number, year: number) => {
+  const calculateGoalProgress = async (
+    barberId: string, 
+    goalType: GoalType, 
+    month: number, 
+    year: number,
+    serviceId?: string | null,
+    serviceCategory?: string | null
+  ) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
     
     let value = 0;
 
-    if (goalType === 'cuts') {
-      // Count completed orders with haircut services
+    if (goalType === 'services' && serviceCategory) {
+      // Count completions of all services in this category
+      const { data: categoryServices } = await supabase
+        .from('services')
+        .select('id')
+        .contains('categories', [serviceCategory]);
+
+      const serviceIds = categoryServices?.map(s => s.id) || [];
+
+      if (serviceIds.length > 0) {
+        const { data } = await supabase
+          .from('order_items')
+          .select(`
+            id,
+            service_id,
+            order:orders!inner(barber_id, status, scheduled_at)
+          `)
+          .in('service_id', serviceIds)
+          .eq('order.barber_id', barberId)
+          .eq('order.status', 'completed')
+          .gte('order.scheduled_at', startDate.toISOString())
+          .lte('order.scheduled_at', endDate.toISOString());
+
+        value = data?.length || 0;
+      }
+    } else if (goalType === 'services' && serviceId) {
+      // Count specific service completions
       const { data } = await supabase
-        .from('orders')
+        .from('order_items')
         .select(`
           id,
-          order_items(service_id, services(category))
+          order:orders!inner(barber_id, status, scheduled_at)
         `)
+        .eq('service_id', serviceId)
+        .eq('order.barber_id', barberId)
+        .eq('order.status', 'completed')
+        .gte('order.scheduled_at', startDate.toISOString())
+        .lte('order.scheduled_at', endDate.toISOString());
+
+      value = data?.length || 0;
+    } else if (goalType === 'cuts') {
+      const { data } = await supabase
+        .from('orders')
+        .select('id')
         .eq('barber_id', barberId)
         .eq('status', 'completed')
         .gte('scheduled_at', startDate.toISOString())
         .lte('scheduled_at', endDate.toISOString());
       
-      value = data?.filter(o => 
-        o.order_items?.some((item: any) => 
-          item.services?.category?.toLowerCase().includes('corte')
-        )
-      ).length || 0;
+      value = data?.length || 0;
     } else if (goalType === 'revenue') {
-      // Sum total revenue
       const { data } = await supabase
         .from('orders')
         .select('total_price')
@@ -146,7 +185,6 @@ export function GoalsTab() {
       
       value = data?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
     } else if (goalType === 'services') {
-      // Count all services
       const { data } = await supabase
         .from('orders')
         .select('id')
@@ -157,7 +195,6 @@ export function GoalsTab() {
       
       value = data?.length || 0;
     } else if (goalType === 'product_sales') {
-      // Count product sales
       const { data } = await supabase
         .from('orders')
         .select(`
@@ -184,7 +221,9 @@ export function GoalsTab() {
         goal.barber_id, 
         goal.goal_type, 
         goal.month, 
-        goal.year
+        goal.year,
+        goal.service_id,
+        goal.service_category
       );
 
       const isCompleted = currentValue >= goal.target_value;
