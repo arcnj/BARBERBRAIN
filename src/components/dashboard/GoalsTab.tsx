@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -292,6 +292,20 @@ export function GoalsTab() {
       }
     }
   });
+
+  // Auto-refresh goals on mount
+  const hasAutoRefreshed = useRef(false);
+  useEffect(() => {
+    if (goals && goals.length > 0 && !hasAutoRefreshed.current) {
+      hasAutoRefreshed.current = true;
+      const activeGoals = goals.filter(g => g.status === 'active');
+      (async () => {
+        for (const goal of activeGoals) {
+          await updateGoalProgress.mutateAsync(goal);
+        }
+      })();
+    }
+  }, [goals]);
 
   // Refresh all goals progress
   const refreshAllGoals = async () => {
