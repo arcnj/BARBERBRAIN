@@ -28,6 +28,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
   const [barberId, setBarberId] = useState("");
   const [goalType, setGoalType] = useState<GoalType>("cuts");
   const [serviceId, setServiceId] = useState<string>("");
+  const [serviceCategory, setServiceCategory] = useState<string>("");
   const [targetValue, setTargetValue] = useState("");
   const [rewardValue, setRewardValue] = useState("");
   const [month, setMonth] = useState(currentMonth.toString());
@@ -67,8 +68,8 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
         throw new Error("Preencha todos os campos obrigatórios");
       }
 
-      if (goalType === 'services' && !serviceId) {
-        throw new Error("Selecione um serviço para a meta");
+      if (goalType === 'services' && !serviceId && !serviceCategory) {
+        throw new Error("Selecione um serviço ou categoria para a meta");
       }
 
       const target = parseFloat(targetValue);
@@ -87,7 +88,8 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
         .insert({
           barber_id: barberId,
           goal_type: goalType,
-          service_id: goalType === 'services' ? serviceId : null,
+          service_id: goalType === 'services' && serviceId ? serviceId : null,
+          service_category: goalType === 'services' && serviceCategory ? serviceCategory : null,
           target_value: target,
           reward_value: reward,
           month: parseInt(month),
@@ -134,6 +136,15 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
     { value: "12", label: "Dezembro" }
   ];
 
+  const serviceCategories = [
+    "Cabelo",
+    "Barba",
+    "Sobrancelha",
+    "Combo",
+    "Tratamento",
+    "Outros"
+  ];
+
   const baseGoalTypes = [
     { value: "cuts", label: "Quantidade de Cortes" },
     { value: "revenue", label: "Faturamento Total (R$)" },
@@ -160,13 +171,19 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>Tipo de Meta</Label>
-        <Select value={goalType === 'services' && serviceId ? `service_${serviceId}` : goalType} onValueChange={(v) => {
-          if (v.startsWith('service_')) {
+        <Select value={goalType === 'services' && serviceCategory ? `category_${serviceCategory}` : goalType === 'services' && serviceId ? `service_${serviceId}` : goalType} onValueChange={(v) => {
+          if (v.startsWith('category_')) {
+            setGoalType('services');
+            setServiceCategory(v.replace('category_', ''));
+            setServiceId("");
+          } else if (v.startsWith('service_')) {
             setGoalType('services');
             setServiceId(v.replace('service_', ''));
+            setServiceCategory("");
           } else {
             setGoalType(v as GoalType);
             setServiceId("");
+            setServiceCategory("");
           }
         }}>
           <SelectTrigger>
@@ -182,10 +199,19 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
               </SelectItem>
             ))}
             
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
+              Metas por Categoria
+            </div>
+            {serviceCategories.map(cat => (
+              <SelectItem key={cat} value={`category_${cat}`}>
+                📁 {cat} (todos os serviços)
+              </SelectItem>
+            ))}
+
             {Object.entries(servicesByCategory).length > 0 && (
               <>
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
-                  Metas por Serviço
+                  Metas por Serviço Específico
                 </div>
                 {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
                   <div key={category}>
@@ -237,7 +263,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>
-          {goalType === 'revenue' ? 'Valor da Meta (R$)' : `Quantidade da Meta${goalType === 'services' && serviceId ? ` (${services?.find(s => s.id === serviceId)?.name || 'Serviço'})` : ''}`}
+          {goalType === 'revenue' ? 'Valor da Meta (R$)' : `Quantidade da Meta${goalType === 'services' && serviceCategory ? ` (Categoria: ${serviceCategory})` : goalType === 'services' && serviceId ? ` (${services?.find(s => s.id === serviceId)?.name || 'Serviço'})` : ''}`}
         </Label>
         <Input
           type="number"

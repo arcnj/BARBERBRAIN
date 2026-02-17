@@ -29,6 +29,7 @@ interface BarberGoal {
   completed_at: string | null;
   created_at: string;
   service_id?: string | null;
+  service_category?: string | null;
   barber?: {
     id: string;
     name: string;
@@ -44,7 +45,7 @@ interface BarberGoal {
 interface GoalCardProps {
   goal: BarberGoal;
   isAdmin: boolean;
-  getGoalTypeLabel: (type: GoalType, serviceName?: string) => string;
+  getGoalTypeLabel: (type: GoalType, serviceName?: string, serviceCategory?: string | null) => string;
   getGoalTypeIcon: (type: GoalType) => React.ReactNode;
 }
 
@@ -146,7 +147,7 @@ export function GoalCard({ goal, isAdmin, getGoalTypeLabel, getGoalTypeIcon }: G
             {getGoalTypeIcon(goal.goal_type)}
           </span>
           <span className="text-muted-foreground">
-            {getGoalTypeLabel(goal.goal_type, goal.service?.name)}
+            {getGoalTypeLabel(goal.goal_type, goal.service?.name, goal.service_category)}
           </span>
         </div>
 

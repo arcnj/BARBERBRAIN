@@ -17,11 +17,15 @@ interface BarberGoal {
   status: GoalStatus;
   completed_at: string | null;
   service_id?: string | null;
+  service_category?: string | null;
   barber?: { name: string } | null;
   service?: { name: string } | null;
 }
 
-const getGoalTypeLabel = (type: GoalType, serviceName?: string): string => {
+const getGoalTypeLabel = (type: GoalType, serviceName?: string, serviceCategory?: string | null): string => {
+  if (type === "services" && serviceCategory) {
+    return `Categoria: ${serviceCategory}`;
+  }
   if (type === "services" && serviceName) {
     return serviceName;
   }
@@ -43,7 +47,8 @@ export function useGoalProgress() {
     goalType: GoalType,
     month: number,
     year: number,
-    serviceId?: string | null
+    serviceId?: string | null,
+    serviceCategory?: string | null
   ) => {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -73,8 +78,34 @@ export function useGoalProgress() {
 
       value = data?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
     } else if (goalType === "services") {
-      // Count specific service completions
-      if (serviceId) {
+      if (serviceCategory) {
+        // Count completions of all services in this category (using categories array)
+        // First get all service IDs that belong to this category
+        const { data: categoryServices } = await supabase
+          .from("services")
+          .select("id")
+          .contains("categories", [serviceCategory]);
+
+        const serviceIds = categoryServices?.map(s => s.id) || [];
+
+        if (serviceIds.length > 0) {
+          const { data } = await supabase
+            .from("order_items")
+            .select(`
+              id,
+              service_id,
+              order:orders!inner(barber_id, status, scheduled_at)
+            `)
+            .in("service_id", serviceIds)
+            .eq("order.barber_id", barberId)
+            .eq("order.status", "completed")
+            .gte("order.scheduled_at", startDate.toISOString())
+            .lte("order.scheduled_at", endDate.toISOString());
+
+          value = data?.length || 0;
+        }
+      } else if (serviceId) {
+        // Count specific service completions
         const { data } = await supabase
           .from("order_items")
           .select(`
@@ -135,7 +166,8 @@ export function useGoalProgress() {
       goal.goal_type,
       goal.month,
       goal.year,
-      goal.service_id
+      goal.service_id,
+      goal.service_category
     );
 
     const isCompleted = currentValue >= goal.target_value;
@@ -166,7 +198,7 @@ export function useGoalProgress() {
           record_type: "goal_reward",
           amount: goal.reward_value,
           reference_id: goal.id,
-          description: `Premiação por meta atingida - ${getGoalTypeLabel(goal.goal_type)}`,
+          description: `Premiação por meta atingida - ${getGoalTypeLabel(goal.goal_type, undefined, goal.service_category)}`,
           month: goal.month,
           year: goal.year,
         });
@@ -182,6 +214,7 @@ export function useGoalProgress() {
       barberName: goal.barber?.name,
       goalType: goal.goal_type,
       serviceName: goal.service?.name,
+      serviceCategory: goal.service_category,
       targetValue: goal.target_value,
       rewardValue: goal.reward_value,
     };
@@ -223,7 +256,7 @@ export function useGoalProgress() {
 
       // Show notifications for significant progress
       results.forEach((data) => {
-        const goalLabel = getGoalTypeLabel(data.goalType, data.serviceName);
+        const goalLabel = getGoalTypeLabel(data.goalType, data.serviceName, data.serviceCategory);
         
         if (data.progressPercent >= 80 && data.previousProgressPercent < 80 && !data.isCompleted) {
           toast.info(
