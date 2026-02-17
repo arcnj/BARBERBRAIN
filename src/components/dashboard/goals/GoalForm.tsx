@@ -26,7 +26,7 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
   const currentYear = new Date().getFullYear();
 
   const [barberId, setBarberId] = useState("");
-  const [goalType, setGoalType] = useState<GoalType>("cuts");
+  const [goalType, setGoalType] = useState<GoalType>("services");
   const [serviceId, setServiceId] = useState<string>("");
   const [serviceCategory, setServiceCategory] = useState<string>("");
   const [targetValue, setTargetValue] = useState("");
@@ -68,8 +68,8 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
         throw new Error("Preencha todos os campos obrigatórios");
       }
 
-      if (goalType === 'services' && !serviceId && !serviceCategory) {
-        throw new Error("Selecione um serviço ou categoria para a meta");
+      if (!serviceCategory) {
+        throw new Error("Selecione uma categoria para a meta");
       }
 
       const target = parseFloat(targetValue);
@@ -145,12 +145,6 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
     "Outros"
   ];
 
-  const baseGoalTypes = [
-    { value: "cuts", label: "Quantidade de Cortes" },
-    { value: "revenue", label: "Faturamento Total (R$)" },
-    { value: "product_sales", label: "Vendas de Produtos" }
-  ];
-
   return (
     <form onSubmit={(e) => { e.preventDefault(); createGoal.mutate(); }} className="space-y-4">
       <div className="space-y-2">
@@ -170,63 +164,21 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
       </div>
 
       <div className="space-y-2">
-        <Label>Tipo de Meta</Label>
-        <Select value={goalType === 'services' && serviceCategory ? `category_${serviceCategory}` : goalType === 'services' && serviceId ? `service_${serviceId}` : goalType} onValueChange={(v) => {
-          if (v.startsWith('category_')) {
-            setGoalType('services');
-            setServiceCategory(v.replace('category_', ''));
-            setServiceId("");
-          } else if (v.startsWith('service_')) {
-            setGoalType('services');
-            setServiceId(v.replace('service_', ''));
-            setServiceCategory("");
-          } else {
-            setGoalType(v as GoalType);
-            setServiceId("");
-            setServiceCategory("");
-          }
+        <Label>Tipo de Meta (Categoria)</Label>
+        <Select value={serviceCategory} onValueChange={(v) => {
+          setGoalType('services');
+          setServiceCategory(v);
+          setServiceId("");
         }}>
           <SelectTrigger>
-            <SelectValue placeholder="Selecione o tipo de meta" />
+            <SelectValue placeholder="Selecione a categoria" />
           </SelectTrigger>
           <SelectContent>
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
-              Metas Gerais
-            </div>
-            {baseGoalTypes.map(type => (
-              <SelectItem key={type.value} value={type.value}>
-                {type.label}
-              </SelectItem>
-            ))}
-            
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
-              Metas por Categoria
-            </div>
             {serviceCategories.map(cat => (
-              <SelectItem key={cat} value={`category_${cat}`}>
-                📁 {cat} (todos os serviços)
+              <SelectItem key={cat} value={cat}>
+                {cat}
               </SelectItem>
             ))}
-
-            {Object.entries(servicesByCategory).length > 0 && (
-              <>
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-2">
-                  Metas por Serviço Específico
-                </div>
-                {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
-                  <div key={category}>
-                    <div className="px-3 py-1 text-xs text-muted-foreground italic">
-                      {category}
-                    </div>
-                    {categoryServices?.map(service => (
-                      <SelectItem key={service.id} value={`service_${service.id}`}>
-                        {service.name}
-                      </SelectItem>
-                    ))}
-                  </div>
-                ))}
-              </>
-            )}
           </SelectContent>
         </Select>
       </div>
@@ -263,15 +215,15 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label>
-          {goalType === 'revenue' ? 'Valor da Meta (R$)' : `Quantidade da Meta${goalType === 'services' && serviceCategory ? ` (Categoria: ${serviceCategory})` : goalType === 'services' && serviceId ? ` (${services?.find(s => s.id === serviceId)?.name || 'Serviço'})` : ''}`}
+          {`Quantidade da Meta${serviceCategory ? ` (${serviceCategory})` : ''}`}
         </Label>
         <Input
           type="number"
           min="1"
-          step={goalType === 'revenue' ? '0.01' : '1'}
+          step="1"
           value={targetValue}
           onChange={(e) => setTargetValue(e.target.value)}
-          placeholder={goalType === 'revenue' ? 'Ex: 8000.00' : 'Ex: 120'}
+          placeholder="Ex: 120"
         />
       </div>
 
