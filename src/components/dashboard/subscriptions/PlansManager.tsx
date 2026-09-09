@@ -237,6 +237,11 @@ export function PlansManager() {
                     {plan.active ? "Ativo" : "Inativo"}
                   </Badge>
                 </div>
+                <Badge variant="outline" className="text-xs">
+                  {plan.monthly_visit_limit != null
+                    ? `${plan.monthly_visit_limit} corte(s) por mês`
+                    : "Cortes ilimitados"}
+                </Badge>
                 {plan.description && (
                   <p className="text-sm text-muted-foreground">{plan.description}</p>
                 )}
