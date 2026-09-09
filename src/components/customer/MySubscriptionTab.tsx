@@ -150,7 +150,22 @@ export function MySubscriptionTab({
                   <p className="text-xs text-muted-foreground">Dias restantes</p>
                   <p className="text-sm font-medium">{days < 0 ? "Vencida" : `${days} dia(s)`}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Cortes no mês</p>
+                  <p className="text-sm font-medium">
+                    {quota?.limit == null
+                      ? "Ilimitados"
+                      : `${quota.used} de ${quota.limit} usados`}
+                  </p>
+                </div>
               </div>
+
+              {quota?.blocked && (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  Você já usou todos os cortes deste ciclo. Fale com a barbearia para liberar mais
+                  atendimentos.
+                </div>
+              )}
 
               {(subscription.plan?.benefits?.length ?? 0) > 0 && (
                 <>
