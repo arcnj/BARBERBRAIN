@@ -116,6 +116,8 @@ export function PlansManager() {
       price: String(plan.price),
       benefits: (plan.benefits || []).join("\n"),
       active: plan.active,
+      monthly_visit_limit:
+        plan.monthly_visit_limit != null ? String(plan.monthly_visit_limit) : "",
     });
     setOpen(true);
   };
