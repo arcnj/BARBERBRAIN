@@ -90,6 +90,7 @@ export function AgendaTab() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const { getSubscription } = useSubscriptionStatus();
   const [newAppointment, setNewAppointment] = useState({
     customerName: "",
     customerPhone: "",
