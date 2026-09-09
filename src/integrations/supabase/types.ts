@@ -1355,6 +1355,70 @@ export type Database = {
           },
         ]
       }
+      subscription_requests: {
+        Row: {
+          created_at: string
+          customer_id: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          kind: string
+          payment_id: string | null
+          plan_id: string
+          status: string
+          subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          kind?: string
+          payment_id?: string | null
+          plan_id: string
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          kind?: string
+          payment_id?: string | null
+          plan_id?: string
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_requests_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_requests_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_requests_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_usages: {
         Row: {
           barber_id: string | null
@@ -1621,6 +1685,33 @@ export type Database = {
       }
     }
     Functions: {
+      approve_subscription_request: {
+        Args: {
+          p_amount: number
+          p_method: string
+          p_notes?: string
+          p_paid_at: string
+          p_request_id: string
+        }
+        Returns: {
+          created_at: string
+          customer_id: string
+          id: string
+          payment_id: string | null
+          period_end: string
+          period_start: string
+          plan_id: string | null
+          status: string
+          subscription_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscription_cycles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       confirm_subscription_payment: {
         Args: {
           p_amount: number
@@ -1658,6 +1749,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      reject_subscription_request: {
+        Args: { p_request_id: string }
+        Returns: undefined
       }
       reverse_subscription_usage: {
         Args: { p_reason?: string; p_usage_id: string }
