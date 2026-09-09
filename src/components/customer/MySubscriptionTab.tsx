@@ -144,6 +144,25 @@ export function MySubscriptionTab({
 
   return (
     <div className="space-y-6">
+      {pendingRequest && (
+        <Card className="glass border-primary/40 bg-primary/5">
+          <CardContent className="py-4 flex items-start gap-3">
+            <Loader2 className="h-4 w-4 mt-0.5 animate-spin text-primary shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-foreground">
+                Pedido enviado — aguardando confirmação da barbearia
+              </p>
+              <p className="text-muted-foreground">
+                Plano {(pendingRequest.plan as unknown as { name?: string } | null)?.name ?? ""} ·
+                enviado em{" "}
+                {format(parseISO(pendingRequest.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}.
+                Assim que a barbearia confirmar o pagamento, sua assinatura é liberada.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {subscription ? (
         <>
           <Card className="glass border-primary/40 bg-gradient-to-br from-primary/10 to-transparent">
