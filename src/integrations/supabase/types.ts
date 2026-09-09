@@ -1123,35 +1123,107 @@ export type Database = {
           },
         ]
       }
+      subscription_cycles: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          payment_id: string | null
+          period_end: string
+          period_start: string
+          plan_id: string | null
+          status: string
+          subscription_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          payment_id?: string | null
+          period_end: string
+          period_start: string
+          plan_id?: string | null
+          status?: string
+          subscription_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          payment_id?: string | null
+          period_end?: string
+          period_start?: string
+          plan_id?: string | null
+          status?: string
+          subscription_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_cycles_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_cycles_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_payments: {
         Row: {
           amount: number
+          confirmed_at: string | null
+          confirmed_by: string | null
           created_at: string
+          cycle_id: string | null
+          expected_amount: number | null
           id: string
           method: string | null
           notes: string | null
           paid_at: string
+          payment_method: string | null
           period_end: string | null
+          status: string
           subscription_id: string
         }
         Insert: {
           amount?: number
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
+          cycle_id?: string | null
+          expected_amount?: number | null
           id?: string
           method?: string | null
           notes?: string | null
           paid_at?: string
+          payment_method?: string | null
           period_end?: string | null
+          status?: string
           subscription_id: string
         }
         Update: {
           amount?: number
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           created_at?: string
+          cycle_id?: string | null
+          expected_amount?: number | null
           id?: string
           method?: string | null
           notes?: string | null
           paid_at?: string
+          payment_method?: string | null
           period_end?: string | null
+          status?: string
           subscription_id?: string
         }
         Relationships: [
@@ -1276,6 +1348,97 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "subscription_reminders_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_usages: {
+        Row: {
+          barber_id: string | null
+          created_at: string
+          customer_id: string
+          cycle_id: string
+          id: string
+          order_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          service_id: string | null
+          status: string
+          subscription_id: string
+          used_at: string
+        }
+        Insert: {
+          barber_id?: string | null
+          created_at?: string
+          customer_id: string
+          cycle_id: string
+          id?: string
+          order_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          service_id?: string | null
+          status?: string
+          subscription_id: string
+          used_at?: string
+        }
+        Update: {
+          barber_id?: string | null
+          created_at?: string
+          customer_id?: string
+          cycle_id?: string
+          id?: string
+          order_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          service_id?: string | null
+          status?: string
+          subscription_id?: string
+          used_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_usages_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_usages_barber_id_fkey"
+            columns: ["barber_id"]
+            isOneToOne: false
+            referencedRelation: "barbers_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_usages_cycle_id_fkey"
+            columns: ["cycle_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_cycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_usages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_usages_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_usages_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "customer_subscriptions"
@@ -1458,6 +1621,33 @@ export type Database = {
       }
     }
     Functions: {
+      confirm_subscription_payment: {
+        Args: {
+          p_amount: number
+          p_method: string
+          p_notes?: string
+          p_paid_at: string
+          p_subscription_id: string
+        }
+        Returns: {
+          created_at: string
+          customer_id: string
+          id: string
+          payment_id: string | null
+          period_end: string
+          period_start: string
+          plan_id: string | null
+          status: string
+          subscription_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscription_cycles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -1468,6 +1658,30 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      reverse_subscription_usage: {
+        Args: { p_reason?: string; p_usage_id: string }
+        Returns: {
+          barber_id: string | null
+          created_at: string
+          customer_id: string
+          cycle_id: string
+          id: string
+          order_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          service_id: string | null
+          status: string
+          subscription_id: string
+          used_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "subscription_usages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlansManager } from "./subscriptions/PlansManager";
 import { SubscribersList } from "./subscriptions/SubscribersList";
+import { RenewalsTab } from "./subscriptions/RenewalsTab";
 import { RemindersLog } from "./subscriptions/RemindersLog";
 import { ReminderSettings } from "./subscriptions/ReminderSettings";
 
@@ -10,13 +11,14 @@ export function SubscriptionsTab() {
       <div className="animate-fade-in">
         <h2 className="font-display text-2xl font-bold text-foreground">Assinaturas</h2>
         <p className="text-muted-foreground mt-1">
-          Planos mensais, assinantes e aviso automático de renovação no WhatsApp
+          Planos mensais, assinantes, renovações com pagamento manual e aviso automático no WhatsApp
         </p>
       </div>
 
       <Tabs defaultValue="assinantes" className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="assinantes">Assinantes</TabsTrigger>
+          <TabsTrigger value="renovacoes">Renovações</TabsTrigger>
           <TabsTrigger value="planos">Planos</TabsTrigger>
           <TabsTrigger value="envios">Envios</TabsTrigger>
           <TabsTrigger value="configuracao">Configuração</TabsTrigger>
@@ -24,6 +26,9 @@ export function SubscriptionsTab() {
 
         <TabsContent value="assinantes">
           <SubscribersList />
+        </TabsContent>
+        <TabsContent value="renovacoes">
+          <RenewalsTab />
         </TabsContent>
         <TabsContent value="planos">
           <PlansManager />

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
+import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -116,6 +117,7 @@ export function AgendaTab() {
   const isAdmin = role === "admin";
   const { registerCommissions } = useCommissions();
   const { updateBarberGoals } = useGoalProgress();
+  const { recordUsage } = useSubscriptionUsage();
 
   // Fetch barber ID for current user (if they are a barber)
   const { data: currentBarber, isLoading: loadingBarber } = useQuery({
@@ -307,6 +309,20 @@ export function AgendaTab() {
         .eq("id", orderId);
 
       if (error) throw error;
+
+      // Registra utilização da assinatura (se o cliente for assinante)
+      if (status === "completed" && orderData?.customer_id) {
+        try {
+          await recordUsage.mutateAsync({
+            orderId,
+            customerId: orderData.customer_id,
+            barberId: orderData.barber_id ?? null,
+            usedAt: orderData.scheduled_at || undefined,
+          });
+        } catch {
+          /* assinatura é complementar ao atendimento */
+        }
+      }
 
       // If completing an order, register commissions and update goals automatically
       if (status === "completed" && orderData?.barber_id && orderData?.scheduled_at) {

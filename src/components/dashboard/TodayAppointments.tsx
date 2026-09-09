@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +95,21 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
   const { registerCommissions } = useCommissions();
   const { updateBarberGoals } = useGoalProgress();
   const { getSubscription } = useSubscriptionStatus();
+  const { recordUsage } = useSubscriptionUsage();
+
+  // Registra a utilização da assinatura (não bloqueia a finalização)
+  const registerSubscriptionUsage = async (order: Order) => {
+    try {
+      await recordUsage.mutateAsync({
+        orderId: order.id,
+        customerId: order.customer_id,
+        barberId: order.barber_id ?? null,
+        usedAt: order.scheduled_at || undefined,
+      });
+    } catch {
+      /* silencioso: assinatura é complementar ao atendimento */
+    }
+  };
 
   // Filter only active orders (not completed or cancelled)
   const activeOrders = orders.filter(o => 
@@ -133,6 +149,7 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
         const order = orders.find(o => o.id === orderId);
         if (order) {
           await registerOrderCommissions(order);
+          await registerSubscriptionUsage(order);
           // Update barber goals progress
           const barberId = order.barber_id;
           if (barberId) {
@@ -167,6 +184,7 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
           const order = orders.find(o => o.id === orderId);
           if (order) {
             await registerOrderCommissions(order);
+            await registerSubscriptionUsage(order);
             if (order.barber_id) barberIds.add(order.barber_id);
           }
         }
