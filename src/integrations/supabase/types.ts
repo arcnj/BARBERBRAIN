@@ -438,6 +438,78 @@ export type Database = {
           },
         ]
       }
+      customer_subscriptions: {
+        Row: {
+          auto_reminder: boolean
+          created_at: string
+          current_period_end: string
+          customer_id: string
+          id: string
+          notes: string | null
+          plan_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          auto_reminder?: boolean
+          created_at?: string
+          current_period_end: string
+          customer_id: string
+          id?: string
+          notes?: string | null
+          plan_id: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_reminder?: boolean
+          created_at?: string
+          current_period_end?: string
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          plan_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_subscriptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "customer_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_locks: {
+        Row: {
+          job_name: string
+          locked_at: string
+          locked_until: string
+        }
+        Insert: {
+          job_name: string
+          locked_at?: string
+          locked_until: string
+        }
+        Update: {
+          job_name?: string
+          locked_at?: string
+          locked_until?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           created_at: string
@@ -1029,6 +1101,163 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          method: string | null
+          notes: string | null
+          paid_at: string
+          period_end: string | null
+          subscription_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          method?: string | null
+          notes?: string | null
+          paid_at?: string
+          period_end?: string | null
+          subscription_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          method?: string | null
+          notes?: string | null
+          paid_at?: string
+          period_end?: string | null
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          active: boolean
+          benefits: string[]
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          benefits?: string[]
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          benefits?: string[]
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscription_reminder_settings: {
+        Row: {
+          created_at: string
+          days_before: number
+          enabled: boolean
+          id: string
+          message_template: string
+          paused_at: string | null
+          paused_reason: string | null
+          twilio_template_sid: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          days_before?: number
+          enabled?: boolean
+          id?: string
+          message_template?: string
+          paused_at?: string | null
+          paused_reason?: string | null
+          twilio_template_sid?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          days_before?: number
+          enabled?: boolean
+          id?: string
+          message_template?: string
+          paused_at?: string | null
+          paused_reason?: string | null
+          twilio_template_sid?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscription_reminders: {
+        Row: {
+          channel: string
+          created_at: string
+          error: string | null
+          id: string
+          message: string | null
+          period_end: string
+          provider_message_id: string | null
+          sent_at: string | null
+          status: string
+          subscription_id: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          message?: string | null
+          period_end: string
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subscription_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          message?: string | null
+          period_end?: string
+          provider_message_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_reminders_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "customer_subscriptions"
             referencedColumns: ["id"]
           },
         ]
