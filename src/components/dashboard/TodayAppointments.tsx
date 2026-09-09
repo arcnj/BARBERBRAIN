@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -91,6 +93,7 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
 
   const { registerCommissions } = useCommissions();
   const { updateBarberGoals } = useGoalProgress();
+  const { getSubscription } = useSubscriptionStatus();
 
   // Filter only active orders (not completed or cancelled)
   const activeOrders = orders.filter(o => 
@@ -293,8 +296,11 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">
-                      {order.profiles?.full_name || "Cliente"}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-medium text-sm truncate">
+                        {order.profiles?.full_name || "Cliente"}
+                      </span>
+                      <SubscriberBadge subscription={getSubscription(order.customer_id)} compact />
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
