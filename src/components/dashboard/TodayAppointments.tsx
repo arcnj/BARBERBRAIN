@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
