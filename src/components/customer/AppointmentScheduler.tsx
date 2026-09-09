@@ -887,17 +887,18 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
               </p>
             )}
 
-            {quota?.limit != null && (
-              <div
-                className={`mb-4 rounded-lg border p-3 text-sm ${
-                  quota.blocked
-                    ? "border-destructive/50 bg-destructive/10 text-destructive"
-                    : "border-primary/40 bg-primary/5 text-muted-foreground"
-                }`}
-              >
-                {quota.blocked
-                  ? `Você já usou os ${quota.limit} corte(s) do plano ${quota.planName} neste ciclo. Fale com a barbearia para agendar mais.`
-                  : `Plano ${quota.planName}: ${quota.used} de ${quota.limit} corte(s) usados neste ciclo (${quota.remaining} restante(s)).`}
+            {coverageLines.length > 0 && (
+              <CoverageSummary
+                lines={coverageLines}
+                planName={coverage?.planName}
+                className="mb-4"
+              />
+            )}
+
+            {coverage?.expired && (
+              <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                Sua assinatura {coverage.planName} está sem ciclo vigente. Renove com a barbearia
+                para voltar a usar os serviços inclusos.
               </div>
             )}
 
@@ -909,10 +910,10 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
                 submitting ||
                 selectedServices.length === 0 ||
                 !selectedDate ||
-                !selectedTime ||
-                !!quota?.blocked
+                !selectedTime
               }
             >
+
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
