@@ -308,6 +308,20 @@ export function AgendaTab() {
 
       if (error) throw error;
 
+      // Registra utilização da assinatura (se o cliente for assinante)
+      if (status === "completed" && orderData?.customer_id) {
+        try {
+          await recordUsage.mutateAsync({
+            orderId,
+            customerId: orderData.customer_id,
+            barberId: orderData.barber_id ?? null,
+            usedAt: orderData.scheduled_at || undefined,
+          });
+        } catch {
+          /* assinatura é complementar ao atendimento */
+        }
+      }
+
       // If completing an order, register commissions and update goals automatically
       if (status === "completed" && orderData?.barber_id && orderData?.scheduled_at) {
         const serviceTotal = orderData.order_items?.reduce((sum, item) => sum + (item.price || 0), 0) || 0;
