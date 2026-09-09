@@ -50,7 +50,9 @@ export function MySubscriptionTab({
   barbershopWhatsapp?: string;
   customerName?: string;
 }) {
+  const { data: quota } = useSubscriptionQuota(userId);
   const { pendingRequest, createRequest } = useMySubscriptionRequest(userId);
+
 
   const { data: subscription, isLoading } = useQuery({
     queryKey: ["my-subscription", userId],
