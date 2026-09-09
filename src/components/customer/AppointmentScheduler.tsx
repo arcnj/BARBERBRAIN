@@ -94,6 +94,8 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: quota, refetch: refetchQuota } = useSubscriptionQuota(user?.id);
+  const { data: coverage } = useSubscriptionCoverage(user?.id);
+
   const [services, setServices] = useState<Service[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
