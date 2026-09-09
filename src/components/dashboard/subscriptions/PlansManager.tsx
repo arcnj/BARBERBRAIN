@@ -67,6 +67,10 @@ export function PlansManager() {
           .map((b) => b.trim())
           .filter(Boolean),
         active: form.active,
+        monthly_visit_limit:
+          form.monthly_visit_limit.trim() === ""
+            ? null
+            : Math.max(1, Number(form.monthly_visit_limit)) || null,
       };
       if (!payload.name) throw new Error("Informe o nome do plano");
 
