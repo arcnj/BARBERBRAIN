@@ -312,7 +312,19 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
     }
   };
 
+  // Cobertura da assinatura para os serviços escolhidos
+  const coverageLines = coverage
+    ? evaluateCoverage(
+        coverage,
+        selectedServices
+          .map((id) => services.find((s) => s.id === id))
+          .filter(Boolean)
+          .map((s) => ({ id: s!.id, name: s!.name, price: Number(s!.price) })),
+      )
+    : [];
+
   const calculateSubtotal = () => {
+
     // If combo is selected, use promotional price
     if (selectedCombo) {
       const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
