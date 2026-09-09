@@ -385,15 +385,16 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
       return;
     }
 
+    // Passar do limite ou escolher serviço fora do plano não bloqueia:
+    // o cliente já foi avisado que esses serviços são pagos à parte.
     const { data: freshQuota } = await refetchQuota();
-    if (freshQuota?.blocked) {
+    if (freshQuota?.expired) {
       toast({
-        title: "Limite do plano atingido",
-        description: `Seu plano ${freshQuota.planName} permite ${freshQuota.limit} corte(s) por mês e você já usou todos. Fale com a barbearia para liberar mais atendimentos.`,
-        variant: "destructive",
+        title: "Assinatura sem ciclo vigente",
+        description: `Renove a assinatura ${freshQuota.planName} com a barbearia. Você pode agendar pagando os serviços normalmente.`,
       });
-      return;
     }
+
 
 
     setSubmitting(true);
