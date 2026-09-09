@@ -166,6 +166,21 @@ export function PlansManager() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Cortes por mês</Label>
+                <Input
+                  value={form.monthly_visit_limit}
+                  onChange={(e) =>
+                    setForm({ ...form, monthly_visit_limit: e.target.value.replace(/\D/g, "") })
+                  }
+                  placeholder="Ex: 4 (vazio = ilimitado)"
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Quantos atendimentos o cliente pode agendar por mês com esse plano. Ao atingir o
+                  limite, novos agendamentos ficam bloqueados até o próximo ciclo.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label>Descrição</Label>
                 <Textarea
                   value={form.description}
