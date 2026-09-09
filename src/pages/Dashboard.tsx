@@ -7,6 +7,7 @@ import { TodayTab } from "@/components/dashboard/TodayTab";
 import { AgendaTab } from "@/components/dashboard/AgendaTab";
 import { ClientsTab } from "@/components/dashboard/ClientsTab";
 import { BirthdaysTab } from "@/components/dashboard/BirthdaysTab";
+import { SubscriptionsTab } from "@/components/dashboard/SubscriptionsTab";
 import { AnalystTab } from "@/components/dashboard/AnalystTab";
 import { ServicesTab } from "@/components/dashboard/ServicesTab";
 import { ProductsTab } from "@/components/dashboard/ProductsTab";
@@ -47,6 +48,8 @@ export default function Dashboard() {
         return <ClientsTab />;
       case "aniversariantes":
         return <BirthdaysTab />;
+      case "assinaturas":
+        return <SubscriptionsTab />;
       case "barbeiros":
         return <BarbersTab />;
       case "metas":

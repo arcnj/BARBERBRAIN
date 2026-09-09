@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Calendar, Users, Scissors, Megaphone, CalendarDays, UserCog, Package, Sparkles, ClipboardList, Warehouse, Target, Cake } from "lucide-react";
+import { Calendar, Users, Scissors, Megaphone, CalendarDays, UserCog, Package, Sparkles, ClipboardList, Warehouse, Target, Cake, BadgeCheck } from "lucide-react";
 
 interface NavigationProps {
   activeTab: string;
@@ -13,6 +13,7 @@ const adminTabs = [
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "aniversariantes", label: "Aniversariantes", icon: Cake },
+  { id: "assinaturas", label: "Assinaturas", icon: BadgeCheck },
   { id: "barbeiros", label: "Barbeiros", icon: UserCog },
   { id: "metas", label: "Metas", icon: Target },
   { id: "servicos", label: "Serviços", icon: Scissors },
