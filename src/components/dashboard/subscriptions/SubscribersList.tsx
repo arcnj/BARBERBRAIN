@@ -24,43 +24,40 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
-import { addMonths, differenceInCalendarDays, format, parseISO } from "date-fns";
+import { addMonths, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarClock, CheckCircle2, Loader2, Plus, RefreshCw, Users, XCircle } from "lucide-react";
+import {
+  Banknote,
+  CalendarClock,
+  CheckCircle2,
+  Eye,
+  Loader2,
+  Plus,
+  Search,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+  SubscriptionRow,
+  statusClasses,
+  statusLabels,
+  paymentMethodLabel,
+  useSubscriptionsOverview,
+} from "@/hooks/useSubscriptionCycles";
+import { UsageBar } from "./UsageBar";
+import { ConfirmPaymentDialog } from "./ConfirmPaymentDialog";
+import { SubscriptionDetailsSheet } from "./SubscriptionDetailsSheet";
+import { cn } from "@/lib/utils";
 
-interface Subscription {
-  id: string;
-  customer_id: string;
-  plan_id: string;
-  start_date: string;
-  current_period_end: string;
-  status: string;
-  auto_reminder: boolean;
-  plan: { name: string; price: number } | null;
-}
-
-type Filter = "all" | "due" | "overdue" | "cancelled";
-
-function statusOf(sub: Subscription) {
-  if (sub.status === "cancelled") return "Cancelada";
-  const days = differenceInCalendarDays(parseISO(sub.current_period_end), new Date());
-  if (days < 0) return "Vencida";
-  if (days <= 7) return "Vencendo";
-  return "Ativa";
-}
-
-const statusStyles: Record<string, string> = {
-  Ativa: "bg-success/10 text-success",
-  Vencendo: "bg-warning/10 text-warning",
-  Vencida: "bg-destructive/10 text-destructive",
-  Cancelada: "bg-muted text-muted-foreground",
-};
+type Filter = "all" | "active" | "pending" | "overdue" | "cancelled";
 
 export function SubscribersList() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState<SubscriptionRow | null>(null);
+  const [detailsTarget, setDetailsTarget] = useState<SubscriptionRow | null>(null);
   const [form, setForm] = useState({
     customer_id: "",
     plan_id: "",
@@ -68,17 +65,7 @@ export function SubscribersList() {
     current_period_end: format(addMonths(new Date(), 1), "yyyy-MM-dd"),
   });
 
-  const { data: subscriptions, isLoading } = useQuery({
-    queryKey: ["customer-subscriptions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customer_subscriptions")
-        .select("*, plan:subscription_plans(name, price)")
-        .order("current_period_end");
-      if (error) throw error;
-      return (data || []) as unknown as Subscription[];
-    },
-  });
+  const { rows, isLoading } = useSubscriptionsOverview();
 
   const { data: customers } = useQuery({
     queryKey: ["subscription-customers"],
@@ -110,25 +97,35 @@ export function SubscribersList() {
     },
   });
 
-  const customerMap = useMemo(
-    () => new Map((customers || []).map((c) => [c.user_id, c])),
-    [customers],
-  );
-
   const createSubscription = useMutation({
     mutationFn: async () => {
       if (!form.customer_id || !form.plan_id) throw new Error("Escolha o cliente e o plano");
-      const { error } = await supabase.from("customer_subscriptions").insert({
-        customer_id: form.customer_id,
-        plan_id: form.plan_id,
-        start_date: form.start_date,
-        current_period_end: form.current_period_end,
-      });
+      const { data, error } = await supabase
+        .from("customer_subscriptions")
+        .insert({
+          customer_id: form.customer_id,
+          plan_id: form.plan_id,
+          start_date: form.start_date,
+          current_period_end: form.current_period_end,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+
+      // ciclo inicial vigente, para o controle de utilizações começar já
+      const { error: cycleError } = await supabase.from("subscription_cycles").insert({
+        subscription_id: data.id,
+        plan_id: form.plan_id,
+        period_start: form.start_date,
+        period_end: form.current_period_end,
+        status: "current",
+      });
+      if (cycleError) throw cycleError;
     },
     onSuccess: () => {
       toast.success("Assinante adicionado!");
-      queryClient.invalidateQueries({ queryKey: ["customer-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscriptions-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["active-subscriptions-map"] });
       setOpen(false);
       setForm({
         customer_id: "",
@@ -140,48 +137,6 @@ export function SubscribersList() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const renew = useMutation({
-    mutationFn: async (sub: Subscription) => {
-      const base = parseISO(sub.current_period_end) > new Date()
-        ? parseISO(sub.current_period_end)
-        : new Date();
-      const newEnd = format(addMonths(base, 1), "yyyy-MM-dd");
-
-      const { error } = await supabase
-        .from("customer_subscriptions")
-        .update({ current_period_end: newEnd, status: "active" })
-        .eq("id", sub.id);
-      if (error) throw error;
-
-      const { error: payError } = await supabase.from("subscription_payments").insert({
-        subscription_id: sub.id,
-        amount: Number(sub.plan?.price ?? 0),
-        period_end: newEnd,
-        method: "manual",
-      });
-      if (payError) throw payError;
-      return newEnd;
-    },
-    onSuccess: (newEnd) => {
-      toast.success(`Renovada até ${format(parseISO(newEnd), "dd/MM/yyyy")}`);
-      queryClient.invalidateQueries({ queryKey: ["customer-subscriptions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const setStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("customer_subscriptions")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-subscriptions"] });
-    },
-  });
-
   const toggleReminder = useMutation({
     mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
       const { error } = await supabase
@@ -191,21 +146,25 @@ export function SubscribersList() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscriptions-overview"] });
     },
   });
 
-  const list = (subscriptions || []).filter((sub) => {
-    const s = statusOf(sub);
-    if (filter === "due") return s === "Vencendo";
-    if (filter === "overdue") return s === "Vencida";
-    if (filter === "cancelled") return s === "Cancelada";
-    return true;
-  });
+  const list = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return rows.filter((sub) => {
+      if (filter !== "all" && sub.uiStatus !== filter) return false;
+      if (!term) return true;
+      return (
+        sub.customerName.toLowerCase().includes(term) ||
+        (sub.plan?.name ?? "").toLowerCase().includes(term)
+      );
+    });
+  }, [rows, filter, search]);
 
-  const active = (subscriptions || []).filter((s) => s.status === "active");
+  const active = rows.filter((s) => s.status === "active");
   const mrr = active.reduce((sum, s) => sum + Number(s.plan?.price ?? 0), 0);
-  const dueSoon = active.filter((s) => statusOf(s) === "Vencendo").length;
+  const dueSoon = rows.filter((s) => s.uiStatus === "pending").length;
 
   return (
     <div className="space-y-4">
@@ -223,9 +182,10 @@ export function SubscribersList() {
         <div className="flex flex-wrap gap-2">
           {([
             ["all", "Todos"],
-            ["due", "Vencendo"],
-            ["overdue", "Vencidas"],
-            ["cancelled", "Canceladas"],
+            ["active", "Ativos"],
+            ["pending", "Pendentes"],
+            ["overdue", "Vencidos"],
+            ["cancelled", "Cancelados"],
           ] as [Filter, string][]).map(([value, label]) => (
             <Button
               key={value}
@@ -238,85 +198,97 @@ export function SubscribersList() {
           ))}
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" /> Novo assinante
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Novo assinante</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Cliente</Label>
-                <Select
-                  value={form.customer_id}
-                  onValueChange={(v) => setForm({ ...form, customer_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolha o cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(customers || []).map((c) => (
-                      <SelectItem key={c.user_id} value={c.user_id}>
-                        {c.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Plano</Label>
-                <Select
-                  value={form.plan_id}
-                  onValueChange={(v) => setForm({ ...form, plan_id: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Escolha o plano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(plans || []).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} — R$ {Number(p.price).toFixed(2)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Início</Label>
-                  <Input
-                    type="date"
-                    value={form.start_date}
-                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Vencimento</Label>
-                  <Input
-                    type="date"
-                    value={form.current_period_end}
-                    onChange={(e) => setForm({ ...form, current_period_end: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={() => createSubscription.mutate()}
-                disabled={createSubscription.isPending}
-              >
-                {createSubscription.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                )}
-                Salvar
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-8 w-44 sm:w-56"
+              placeholder="Buscar cliente ou plano"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-1" /> Novo assinante
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Novo assinante</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Cliente</Label>
+                  <Select
+                    value={form.customer_id}
+                    onValueChange={(v) => setForm({ ...form, customer_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(customers || []).map((c) => (
+                        <SelectItem key={c.user_id} value={c.user_id}>
+                          {c.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Plano</Label>
+                  <Select
+                    value={form.plan_id}
+                    onValueChange={(v) => setForm({ ...form, plan_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha o plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(plans || []).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} — R$ {Number(p.price).toFixed(2)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Início</Label>
+                    <Input
+                      type="date"
+                      value={form.start_date}
+                      onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vencimento</Label>
+                    <Input
+                      type="date"
+                      value={form.current_period_end}
+                      onChange={(e) => setForm({ ...form, current_period_end: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  onClick={() => createSubscription.mutate()}
+                  disabled={createSubscription.isPending}
+                >
+                  {createSubscription.isPending && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
+                  Salvar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (
@@ -325,81 +297,67 @@ export function SubscribersList() {
         </div>
       ) : list.length ? (
         <div className="space-y-3">
-          {list.map((sub) => {
-            const profile = customerMap.get(sub.customer_id);
-            const status = statusOf(sub);
-            const days = differenceInCalendarDays(parseISO(sub.current_period_end), new Date());
-            const name = profile?.full_name || "Cliente";
-            return (
-              <Card key={sub.id} className="glass">
-                <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{name}</span>
-                      <Badge className={statusStyles[status]}>{status}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {sub.plan?.name} · R$
-                      {Number(sub.plan?.price ?? 0).toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                      })}
-                      /mês
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Vence em{" "}
-                      {format(parseISO(sub.current_period_end), "dd 'de' MMMM", { locale: ptBR })}
-                      {sub.status !== "cancelled" &&
-                        (days >= 0 ? ` · faltam ${days} dia(s)` : ` · atrasada ${-days} dia(s)`)}
-                    </p>
-                    {!profile?.phone && (
-                      <p className="text-xs text-destructive">Sem telefone — aviso não é enviado</p>
-                    )}
+          {list.map((sub) => (
+            <Card key={sub.id} className="glass">
+              <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1.5 md:max-w-md flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-foreground">{sub.customerName}</span>
+                    <Badge variant="outline" className={cn("text-xs", statusClasses[sub.uiStatus])}>
+                      {statusLabels[sub.uiStatus]}
+                    </Badge>
                   </div>
+                  <p className="text-sm text-muted-foreground">
+                    {sub.plan?.name} · R$
+                    {Number(sub.plan?.price ?? 0).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                    })}
+                    /mês
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Vence em{" "}
+                    {format(parseISO(sub.current_period_end), "dd 'de' MMMM", { locale: ptBR })}
+                    {sub.status !== "cancelled" &&
+                      (sub.daysToDue >= 0
+                        ? ` · faltam ${sub.daysToDue} dia(s)`
+                        : ` · atrasada ${-sub.daysToDue} dia(s)`)}
+                    {sub.lastPayment &&
+                      ` · último pagamento ${format(parseISO(sub.lastPayment.paid_at), "dd/MM")} (${paymentMethodLabel(
+                        sub.lastPayment.payment_method || sub.lastPayment.method,
+                      )})`}
+                  </p>
+                  <UsageBar used={sub.usedCount} limit={sub.limit} />
+                  {!sub.customerPhone && (
+                    <p className="text-xs text-destructive">Sem telefone — aviso não é enviado</p>
+                  )}
+                </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-2 mr-2">
-                      <Switch
-                        checked={sub.auto_reminder}
-                        onCheckedChange={(v) =>
-                          toggleReminder.mutate({ id: sub.id, value: v })
-                        }
-                      />
-                      <span className="text-xs text-muted-foreground">Aviso automático</span>
-                    </div>
-                    <WhatsAppButton
-                      phone={profile?.phone}
-                      name={name}
-                      variant="outline"
-                      size="sm"
-                      showLabel
-                      message={`Oi ${name.split(" ")[0]}! Sua assinatura ${sub.plan?.name ?? ""} vence em ${format(parseISO(sub.current_period_end), "dd/MM/yyyy")}. Quer renovar?`}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 mr-2">
+                    <Switch
+                      checked={sub.auto_reminder}
+                      onCheckedChange={(v) => toggleReminder.mutate({ id: sub.id, value: v })}
                     />
-                    <Button size="sm" onClick={() => renew.mutate(sub)} disabled={renew.isPending}>
-                      <RefreshCw className="h-3.5 w-3.5 mr-1" /> Renovar
-                    </Button>
-                    {sub.status === "cancelled" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setStatus.mutate({ id: sub.id, status: "active" })}
-                      >
-                        Reativar
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => setStatus.mutate({ id: sub.id, status: "cancelled" })}
-                      >
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
-                      </Button>
-                    )}
+                    <span className="text-xs text-muted-foreground">Aviso automático</span>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  <WhatsAppButton
+                    phone={sub.customerPhone ?? undefined}
+                    name={sub.customerName}
+                    variant="outline"
+                    size="sm"
+                    showLabel
+                    message={`Oi ${sub.customerName.split(" ")[0]}! Sua assinatura ${sub.plan?.name ?? ""} vence em ${format(parseISO(sub.current_period_end), "dd/MM/yyyy")}. Quer renovar?`}
+                  />
+                  <Button size="sm" onClick={() => setPaymentTarget(sub)}>
+                    <Banknote className="h-3.5 w-3.5 mr-1" /> Confirmar pagamento
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setDetailsTarget(sub)}>
+                    <Eye className="h-3.5 w-3.5 mr-1" /> Detalhes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : (
         <Card className="glass">
@@ -408,6 +366,21 @@ export function SubscribersList() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmPaymentDialog
+        subscription={paymentTarget}
+        open={!!paymentTarget}
+        onOpenChange={(o) => !o && setPaymentTarget(null)}
+      />
+      <SubscriptionDetailsSheet
+        subscription={detailsTarget}
+        open={!!detailsTarget}
+        onOpenChange={(o) => !o && setDetailsTarget(null)}
+        onConfirmPayment={(sub) => {
+          setDetailsTarget(null);
+          setPaymentTarget(sub);
+        }}
+      />
     </div>
   );
 }
