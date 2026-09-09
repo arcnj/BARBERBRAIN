@@ -1029,7 +1029,16 @@ export function AgendaTab() {
                       </Badge>
                     ))}
                   </div>
+                  <OrderCoverage
+                    customerId={selectedOrder.customer_id}
+                    services={selectedOrder.order_items.map((item) => ({
+                      id: item.services?.id ?? item.id,
+                      name: item.services?.name ?? "Serviço",
+                      price: Number(item.price || 0),
+                    }))}
+                  />
                 </div>
+
 
                 {/* Barber */}
                 {selectedOrder.barbers?.name && (
