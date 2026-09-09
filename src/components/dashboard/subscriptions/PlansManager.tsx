@@ -26,9 +26,17 @@ interface Plan {
   price: number;
   benefits: string[];
   active: boolean;
+  monthly_visit_limit: number | null;
 }
 
-const emptyForm = { name: "", description: "", price: "", benefits: "", active: true };
+const emptyForm = {
+  name: "",
+  description: "",
+  price: "",
+  benefits: "",
+  active: true,
+  monthly_visit_limit: "",
+};
 
 export function PlansManager() {
   const queryClient = useQueryClient();
