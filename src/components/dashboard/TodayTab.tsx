@@ -190,14 +190,14 @@ export function TodayTab() {
 
   // Get user name from profile or barber name
   const { data: profile } = useQuery({
-    queryKey: ["user-profile", user?.id],
+    queryKey: ["today-greeting-profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error) return null;
       return data;
@@ -205,7 +205,8 @@ export function TodayTab() {
     enabled: !!user?.id,
   });
 
-  const userName = barberName || profile?.full_name?.split(" ")[0] || "usuário";
+  const firstName = (barberName || profile?.full_name || "").trim().split(" ")[0];
+  const greetingText = firstName ? `${greeting}, ${firstName}!` : `${greeting}!`;
 
   if (loadingOrders || loadingBarber) {
     return (
