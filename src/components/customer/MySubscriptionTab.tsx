@@ -99,6 +99,23 @@ export function MySubscriptionTab({
     },
   });
 
+  const { data: planServices } = useQuery({
+    queryKey: ["my-plan-services", subscription?.plan?.id],
+    enabled: !!subscription?.plan?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subscription_plan_services")
+        .select("monthly_limit, service:services(id, name)")
+        .eq("plan_id", subscription!.plan!.id);
+      if (error) throw error;
+      return (data ?? []) as unknown as {
+        monthly_limit: number | null;
+        service: { id: string; name: string } | null;
+      }[];
+    },
+  });
+
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
