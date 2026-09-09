@@ -1038,7 +1038,7 @@ export function AgendaTab() {
                   <OrderCoverage
                     customerId={selectedOrder.customer_id}
                     services={selectedOrder.order_items.map((item) => ({
-                      id: item.id,
+                      id: item.service_id,
                       name: item.services?.name ?? "Serviço",
                       price: Number(item.price || 0),
                     }))}
