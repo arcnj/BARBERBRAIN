@@ -207,18 +207,10 @@ export function useSubscriptionsOverview() {
 
   const metrics = useMemo(() => {
     const rows = query.data ?? [];
-    const monthStart = startOfMonth(new Date());
-    const receivedThisMonth = rows.reduce((sum, r) => {
-      if (!r.lastPayment) return sum;
-      return sum;
-    }, 0);
     return {
       active: rows.filter((r) => r.uiStatus === "active").length,
       pending: rows.filter((r) => r.uiStatus === "pending").length,
       overdue: rows.filter((r) => r.uiStatus === "overdue").length,
-      dueSoon: rows.filter((r) => r.uiStatus === "pending").length,
-      monthStart,
-      receivedThisMonth,
     };
   }, [query.data]);
 
