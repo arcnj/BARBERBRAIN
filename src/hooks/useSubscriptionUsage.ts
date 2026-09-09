@@ -10,9 +10,9 @@ interface RecordUsageInput {
 
 /**
  * Registra as utilizações da assinatura ao concluir um atendimento.
- * Cada serviço do atendimento gera um registro próprio no ciclo vigente,
- * marcado como coberto (dentro do plano) ou não coberto (pago à parte).
- * Nunca bloqueia a conclusão do atendimento.
+ * Cada serviço do atendimento gera um registro próprio no ciclo vigente.
+ * Nunca bloqueia a conclusão do atendimento: se não houver assinatura,
+ * ciclo vigente ou saldo, simplesmente nada é registrado.
  */
 export function useSubscriptionUsage() {
   const queryClient = useQueryClient();
@@ -22,7 +22,7 @@ export function useSubscriptionUsage() {
       // assinatura ativa do cliente
       const { data: sub } = await supabase
         .from("customer_subscriptions")
-        .select("id, plan_id, plan:subscription_plans(monthly_visit_limit)")
+        .select("id, plan:subscription_plans(monthly_visit_limit)")
         .eq("customer_id", customerId)
         .eq("status", "active")
         .order("current_period_end", { ascending: false })
@@ -42,62 +42,38 @@ export function useSubscriptionUsage() {
       const today = new Date().toISOString().slice(0, 10);
       if (today > cycle.period_end) return { recorded: 0 };
 
-      const generalLimit =
+      const limit =
         (sub.plan as unknown as { monthly_visit_limit: number | null } | null)
           ?.monthly_visit_limit ?? null;
 
-      const [{ data: rules }, { data: usages }, { data: items }] = await Promise.all([
-        supabase
-          .from("subscription_plan_services")
-          .select("service_id, monthly_limit")
-          .eq("plan_id", sub.plan_id),
-        supabase
-          .from("subscription_usages")
-          .select("service_id")
-          .eq("cycle_id", cycle.id)
-          .eq("status", "active")
-          .eq("covered", true),
-        supabase.from("order_items").select("service_id").eq("order_id", orderId),
-      ]);
+      const { count } = await supabase
+        .from("subscription_usages")
+        .select("id", { count: "exact", head: true })
+        .eq("cycle_id", cycle.id)
+        .eq("status", "active");
+      const used = count ?? 0;
+
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("service_id")
+        .eq("order_id", orderId);
 
       const services = (items ?? []).map((i) => i.service_id).filter(Boolean) as string[];
       if (!services.length) return { recorded: 0 };
 
-      const usedByService: Record<string, number> = {};
-      let generalUsed = 0;
-      for (const u of usages ?? []) {
-        generalUsed += 1;
-        if (u.service_id) usedByService[u.service_id] = (usedByService[u.service_id] ?? 0) + 1;
-      }
+      const allowed =
+        limit == null ? services : services.slice(0, Math.max(0, limit - used));
+      if (!allowed.length) return { recorded: 0 };
 
-      const hasRules = (rules ?? []).length > 0;
-
-      const rows = services.map((serviceId) => {
-        let covered: boolean;
-        if (hasRules) {
-          const rule = (rules ?? []).find((r) => r.service_id === serviceId);
-          const withinService =
-            !!rule && (rule.monthly_limit == null || (usedByService[serviceId] ?? 0) < rule.monthly_limit);
-          const withinGeneral = generalLimit == null || generalUsed < generalLimit;
-          covered = withinService && withinGeneral;
-        } else {
-          covered = generalLimit == null || generalUsed < generalLimit;
-        }
-        if (covered) {
-          usedByService[serviceId] = (usedByService[serviceId] ?? 0) + 1;
-          generalUsed += 1;
-        }
-        return {
-          subscription_id: sub.id,
-          cycle_id: cycle.id,
-          customer_id: customerId,
-          order_id: orderId,
-          service_id: serviceId,
-          barber_id: barberId,
-          used_at: usedAt || new Date().toISOString(),
-          covered,
-        };
-      });
+      const rows = allowed.map((serviceId) => ({
+        subscription_id: sub.id,
+        cycle_id: cycle.id,
+        customer_id: customerId,
+        order_id: orderId,
+        service_id: serviceId,
+        barber_id: barberId,
+        used_at: usedAt || new Date().toISOString(),
+      }));
 
       const { error } = await supabase
         .from("subscription_usages")
@@ -107,12 +83,11 @@ export function useSubscriptionUsage() {
         });
       if (error) throw error;
 
-      return { recorded: rows.filter((r) => r.covered).length };
+      return { recorded: rows.length };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subscriptions-overview"] });
       queryClient.invalidateQueries({ queryKey: ["subscription-quota"] });
-      queryClient.invalidateQueries({ queryKey: ["subscription-coverage"] });
       queryClient.invalidateQueries({ queryKey: ["subscription-history"] });
     },
   });

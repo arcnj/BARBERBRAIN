@@ -99,23 +99,6 @@ export function MySubscriptionTab({
     },
   });
 
-  const { data: planServices } = useQuery({
-    queryKey: ["my-plan-services", subscription?.plan?.id],
-    enabled: !!subscription?.plan?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("subscription_plan_services")
-        .select("monthly_limit, service:services(id, name)")
-        .eq("plan_id", subscription!.plan!.id);
-      if (error) throw error;
-      return (data ?? []) as unknown as {
-        monthly_limit: number | null;
-        service: { id: string; name: string } | null;
-      }[];
-    },
-  });
-
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -247,37 +230,6 @@ export function MySubscriptionTab({
                   </div>
                 </>
               )}
-
-              {(planServices?.length ?? 0) > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <Check className="h-4 w-4 text-primary" /> Serviços inclusos
-                    </p>
-                    <ul className="space-y-1">
-                      {planServices!.map((ps) => (
-                        <li
-                          key={ps.service?.id ?? Math.random()}
-                          className="flex items-center justify-between gap-2 text-sm text-muted-foreground"
-                        >
-                          <span>{ps.service?.name ?? "Serviço"}</span>
-                          <span className="text-xs">
-                            {ps.monthly_limit == null
-                              ? "Sem limite"
-                              : `${ps.monthly_limit}x por mês`}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Serviços fora dessa lista, ou acima da quantidade do mês, são pagos à parte.
-                    </p>
-                  </div>
-                </>
-              )}
-
-
 
               {requestButton(
                 subscription.plan?.id ?? "",
