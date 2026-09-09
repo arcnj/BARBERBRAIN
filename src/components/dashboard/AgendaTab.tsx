@@ -7,6 +7,8 @@ import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
+import { OrderCoverage } from "@/components/subscriptions/OrderCoverage";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,11 +54,13 @@ interface Order {
   order_items: {
     id: string;
     price: number;
+    service_id: string;
     services: {
       name: string;
       duration_minutes: number | null;
     } | null;
   }[];
+
   order_products: {
     id: string;
     price: number;
@@ -172,11 +176,13 @@ export function AgendaTab() {
           order_items (
             id,
             price,
+            service_id,
             services (
               name,
               duration_minutes
             )
           ),
+
           order_products (
             id,
             price,
@@ -1029,7 +1035,17 @@ export function AgendaTab() {
                       </Badge>
                     ))}
                   </div>
+                  <OrderCoverage
+                    customerId={selectedOrder.customer_id}
+                    services={selectedOrder.order_items.map((item) => ({
+                      id: item.service_id,
+                      name: item.services?.name ?? "Serviço",
+                      price: Number(item.price || 0),
+                    }))}
+                  />
+
                 </div>
+
 
                 {/* Barber */}
                 {selectedOrder.barbers?.name && (

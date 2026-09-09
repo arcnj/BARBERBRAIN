@@ -1236,6 +1236,48 @@ export type Database = {
           },
         ]
       }
+      subscription_plan_services: {
+        Row: {
+          created_at: string
+          id: string
+          monthly_limit: number | null
+          plan_id: string
+          service_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          monthly_limit?: number | null
+          plan_id: string
+          service_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          monthly_limit?: number | null
+          plan_id?: string
+          service_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_plan_services_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_plan_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_plans: {
         Row: {
           active: boolean
@@ -1422,6 +1464,7 @@ export type Database = {
       subscription_usages: {
         Row: {
           barber_id: string | null
+          covered: boolean
           created_at: string
           customer_id: string
           cycle_id: string
@@ -1437,6 +1480,7 @@ export type Database = {
         }
         Insert: {
           barber_id?: string | null
+          covered?: boolean
           created_at?: string
           customer_id: string
           cycle_id: string
@@ -1452,6 +1496,7 @@ export type Database = {
         }
         Update: {
           barber_id?: string | null
+          covered?: boolean
           created_at?: string
           customer_id?: string
           cycle_id?: string
@@ -1758,6 +1803,7 @@ export type Database = {
         Args: { p_reason?: string; p_usage_id: string }
         Returns: {
           barber_id: string | null
+          covered: boolean
           created_at: string
           customer_id: string
           cycle_id: string
