@@ -117,6 +117,7 @@ export function AgendaTab() {
   const isAdmin = role === "admin";
   const { registerCommissions } = useCommissions();
   const { updateBarberGoals } = useGoalProgress();
+  const { recordUsage } = useSubscriptionUsage();
 
   // Fetch barber ID for current user (if they are a barber)
   const { data: currentBarber, isLoading: loadingBarber } = useQuery({
