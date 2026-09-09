@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
+import { useSubscriptionCoverage, evaluateCoverage } from "@/hooks/useSubscriptionCoverage";
+import { CoverageSummary } from "@/components/subscriptions/CoverageSummary";
+
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,6 +94,8 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
   const { user } = useAuth();
   const { toast } = useToast();
   const { data: quota, refetch: refetchQuota } = useSubscriptionQuota(user?.id);
+  const { data: coverage } = useSubscriptionCoverage(user?.id);
+
   const [services, setServices] = useState<Service[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -307,7 +312,19 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
     }
   };
 
+  // Cobertura da assinatura para os serviços escolhidos
+  const coverageLines = coverage
+    ? evaluateCoverage(
+        coverage,
+        selectedServices
+          .map((id) => services.find((s) => s.id === id))
+          .filter(Boolean)
+          .map((s) => ({ id: s!.id, name: s!.name, price: Number(s!.price) })),
+      )
+    : [];
+
   const calculateSubtotal = () => {
+
     // If combo is selected, use promotional price
     if (selectedCombo) {
       const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
@@ -368,15 +385,16 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
       return;
     }
 
+    // Passar do limite ou escolher serviço fora do plano não bloqueia:
+    // o cliente já foi avisado que esses serviços são pagos à parte.
     const { data: freshQuota } = await refetchQuota();
-    if (freshQuota?.blocked) {
+    if (freshQuota?.expired) {
       toast({
-        title: "Limite do plano atingido",
-        description: `Seu plano ${freshQuota.planName} permite ${freshQuota.limit} corte(s) por mês e você já usou todos. Fale com a barbearia para liberar mais atendimentos.`,
-        variant: "destructive",
+        title: "Assinatura sem ciclo vigente",
+        description: `Renove a assinatura ${freshQuota.planName} com a barbearia. Você pode agendar pagando os serviços normalmente.`,
       });
-      return;
     }
+
 
 
     setSubmitting(true);
@@ -887,17 +905,18 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
               </p>
             )}
 
-            {quota?.limit != null && (
-              <div
-                className={`mb-4 rounded-lg border p-3 text-sm ${
-                  quota.blocked
-                    ? "border-destructive/50 bg-destructive/10 text-destructive"
-                    : "border-primary/40 bg-primary/5 text-muted-foreground"
-                }`}
-              >
-                {quota.blocked
-                  ? `Você já usou os ${quota.limit} corte(s) do plano ${quota.planName} neste ciclo. Fale com a barbearia para agendar mais.`
-                  : `Plano ${quota.planName}: ${quota.used} de ${quota.limit} corte(s) usados neste ciclo (${quota.remaining} restante(s)).`}
+            {coverageLines.length > 0 && (
+              <CoverageSummary
+                lines={coverageLines}
+                planName={coverage?.planName}
+                className="mb-4"
+              />
+            )}
+
+            {coverage?.expired && (
+              <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                Sua assinatura {coverage.planName} está sem ciclo vigente. Renove com a barbearia
+                para voltar a usar os serviços inclusos.
               </div>
             )}
 
@@ -909,10 +928,10 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
                 submitting ||
                 selectedServices.length === 0 ||
                 !selectedDate ||
-                !selectedTime ||
-                !!quota?.blocked
+                !selectedTime
               }
             >
+
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
