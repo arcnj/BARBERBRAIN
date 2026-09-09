@@ -29,7 +29,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
 
   // Fetch profile data based on role
   const { data: profileData, isLoading } = useQuery({
-    queryKey: ["user-profile", user?.id],
+    queryKey: ["profile-dialog", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
 

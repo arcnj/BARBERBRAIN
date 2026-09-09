@@ -190,14 +190,14 @@ export function TodayTab() {
 
   // Get user name from profile or barber name
   const { data: profile } = useQuery({
-    queryKey: ["user-profile", user?.id],
+    queryKey: ["today-greeting-profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from("profiles")
         .select("full_name")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error) return null;
       return data;
@@ -205,7 +205,8 @@ export function TodayTab() {
     enabled: !!user?.id,
   });
 
-  const userName = barberName || profile?.full_name?.split(" ")[0] || "usuário";
+  const firstName = (barberName || profile?.full_name || "").trim().split(" ")[0];
+  const greetingText = firstName ? `${greeting}, ${firstName}!` : `${greeting}!`;
 
   if (loadingOrders || loadingBarber) {
     return (
@@ -237,7 +238,7 @@ export function TodayTab() {
     <div className="space-y-6 pb-24 lg:pb-6">
       {/* Greeting */}
       <div className="animate-fade-in">
-        <h2 className="font-display text-2xl font-bold text-foreground">{greeting}, {userName}! ☀️</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground">{greetingText} ☀️</h2>
         <p className="text-muted-foreground mt-1">
           {isAdmin ? "Resumo geral da barbearia" : "Resumo do seu dia"}
         </p>

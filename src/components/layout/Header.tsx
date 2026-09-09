@@ -51,7 +51,7 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
 
   // Fetch user avatar
   const { data: userAvatar } = useQuery({
-    queryKey: ["user-profile", user?.id],
+    queryKey: ["header-avatar", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
 
