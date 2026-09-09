@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { BadgeCheck, Check, Loader2, MessageCircle, Receipt, Sparkles } from "lucide-react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
 
 interface Plan {
   id: string;
