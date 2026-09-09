@@ -368,6 +368,17 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
       return;
     }
 
+    const { data: freshQuota } = await refetchQuota();
+    if (freshQuota?.blocked) {
+      toast({
+        title: "Limite do plano atingido",
+        description: `Seu plano ${freshQuota.planName} permite ${freshQuota.limit} corte(s) por mês e você já usou todos. Fale com a barbearia para liberar mais atendimentos.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+
     setSubmitting(true);
 
     try {
