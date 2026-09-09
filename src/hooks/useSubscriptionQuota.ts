@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseISO, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SubscriptionQuota {
@@ -10,11 +9,13 @@ export interface SubscriptionQuota {
   blocked: boolean;
   periodStart: string;
   periodEnd: string;
+  expired: boolean;
 }
 
 /**
- * Consumo de cortes do ciclo atual da assinatura do cliente.
- * Se o plano não tiver limite (monthly_visit_limit null), nunca bloqueia.
+ * Consumo do ciclo vigente da assinatura, calculado pelos registros de
+ * utilização (subscription_usages) — não por contagem de agendamentos.
+ * Plano sem limite (monthly_visit_limit null) nunca bloqueia.
  */
 export function useSubscriptionQuota(userId: string | undefined) {
   return useQuery({
@@ -41,30 +42,50 @@ export function useSubscriptionQuota(userId: string | undefined) {
         monthly_visit_limit: number | null;
       } | null;
 
-      const periodEnd = parseISO(sub.current_period_end);
-      const periodStart = subMonths(periodEnd, 1);
-
-      const { count, error: countError } = await supabase
-        .from("orders")
-        .select("id", { count: "exact", head: true })
-        .eq("customer_id", userId!)
-        .neq("status", "cancelled")
-        .gte("scheduled_at", periodStart.toISOString())
-        .lte("scheduled_at", periodEnd.toISOString());
-
-      if (countError) throw countError;
+      const { data: cycle, error: cycleError } = await supabase
+        .from("subscription_cycles")
+        .select("id, period_start, period_end")
+        .eq("subscription_id", sub.id)
+        .eq("status", "current")
+        .maybeSingle();
+      if (cycleError) throw cycleError;
 
       const limit = plan?.monthly_visit_limit ?? null;
+
+      if (!cycle) {
+        // Sem ciclo vigente: assinatura precisa de renovação confirmada.
+        return {
+          planName: plan?.name ?? "Assinatura",
+          limit,
+          used: 0,
+          remaining: limit,
+          blocked: true,
+          periodStart: sub.current_period_end,
+          periodEnd: sub.current_period_end,
+          expired: true,
+        };
+      }
+
+      const { count, error: countError } = await supabase
+        .from("subscription_usages")
+        .select("id", { count: "exact", head: true })
+        .eq("cycle_id", cycle.id)
+        .eq("status", "active");
+      if (countError) throw countError;
+
       const used = count ?? 0;
+      const today = new Date().toISOString().slice(0, 10);
+      const expired = today > cycle.period_end;
 
       return {
         planName: plan?.name ?? "Assinatura",
         limit,
         used,
         remaining: limit == null ? null : Math.max(0, limit - used),
-        blocked: limit != null && used >= limit,
-        periodStart: periodStart.toISOString(),
-        periodEnd: periodEnd.toISOString(),
+        blocked: expired || (limit != null && used >= limit),
+        periodStart: cycle.period_start,
+        periodEnd: cycle.period_end,
+        expired,
       };
     },
   });
