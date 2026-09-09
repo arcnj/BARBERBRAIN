@@ -115,6 +115,7 @@ export function SubscribersList() {
       // ciclo inicial vigente, para o controle de utilizações começar já
       const { error: cycleError } = await supabase.from("subscription_cycles").insert({
         subscription_id: data.id,
+        customer_id: form.customer_id,
         plan_id: form.plan_id,
         period_start: form.start_date,
         period_end: form.current_period_end,
