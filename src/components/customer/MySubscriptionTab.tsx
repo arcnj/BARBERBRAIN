@@ -102,22 +102,40 @@ export function MySubscriptionTab({
     );
   }
 
-  const contactButton = (message: string, label: string) =>
-    barbershopWhatsapp ? (
-      <Button
-        variant="outline"
-        className="gap-2 border-primary/40 text-primary"
-        onClick={() => window.open(whatsappLink(barbershopWhatsapp, message), "_blank")}
-      >
+  const requestButton = (
+    planId: string,
+    kind: "new" | "renewal",
+    subscriptionId: string | null,
+    label: string,
+    message: string,
+  ) => (
+    <Button
+      variant="outline"
+      className="gap-2 border-primary/40 text-primary"
+      disabled={!planId || !!pendingRequest || createRequest.isPending}
+      onClick={async () => {
+        if (!planId) return;
+        await createRequest.mutateAsync({ planId, kind, subscriptionId });
+        toast.success("Pedido enviado! Aguarde a confirmação da barbearia.");
+        if (barbershopWhatsapp) {
+          window.open(whatsappLink(barbershopWhatsapp, message), "_blank");
+        }
+      }}
+    >
+      {createRequest.isPending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
         <MessageCircle className="h-4 w-4" />
-        {label}
-      </Button>
-    ) : null;
+      )}
+      {pendingRequest ? "Pedido em análise" : label}
+    </Button>
+  );
 
   const days = subscription
     ? differenceInCalendarDays(parseISO(subscription.current_period_end), new Date())
     : 0;
   const active = subscription?.status === "active";
+
 
   return (
     <div className="space-y-6">
@@ -189,10 +207,14 @@ export function MySubscriptionTab({
                 </>
               )}
 
-              {contactButton(
+              {requestButton(
+                subscription.plan?.id ?? "",
+                "renewal",
+                subscription.id,
+                "Renovar pelo WhatsApp",
                 `Olá! Sou ${customerName || "cliente"} e quero renovar minha assinatura ${subscription.plan?.name ?? ""}.`,
-                "Renovar pelo WhatsApp"
               )}
+
             </CardContent>
           </Card>
 
@@ -256,10 +278,8 @@ export function MySubscriptionTab({
                       ))}
                     </ul>
                   )}
-                  {contactButton(
-                    `Olá! Sou ${customerName || "cliente"} e quero assinar o plano ${plan.name}.`,
-                    "Quero assinar"
-                  )}
+                  {requestButton(plan.id, "new", null, `Quero assinar`, `Olá! Sou ${customerName || "cliente"} e quero assinar o plano ${plan.name}.`)}
+
                 </CardContent>
               </Card>
             ))}
