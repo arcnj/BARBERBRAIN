@@ -54,11 +54,13 @@ interface Order {
   order_items: {
     id: string;
     price: number;
+    service_id: string;
     services: {
       name: string;
       duration_minutes: number | null;
     } | null;
   }[];
+
   order_products: {
     id: string;
     price: number;
@@ -174,11 +176,13 @@ export function AgendaTab() {
           order_items (
             id,
             price,
+            service_id,
             services (
               name,
               duration_minutes
             )
           ),
+
           order_products (
             id,
             price,
