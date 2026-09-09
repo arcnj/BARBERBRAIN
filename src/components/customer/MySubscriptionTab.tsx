@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { BadgeCheck, Check, Loader2, MessageCircle, Receipt, Sparkles } from "lucide-react";
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
 
 interface Plan {
   id: string;
@@ -46,6 +47,8 @@ export function MySubscriptionTab({
   barbershopWhatsapp?: string;
   customerName?: string;
 }) {
+  const { data: quota } = useSubscriptionQuota(userId);
+
   const { data: subscription, isLoading } = useQuery({
     queryKey: ["my-subscription", userId],
     enabled: !!userId,
@@ -150,7 +153,22 @@ export function MySubscriptionTab({
                   <p className="text-xs text-muted-foreground">Dias restantes</p>
                   <p className="text-sm font-medium">{days < 0 ? "Vencida" : `${days} dia(s)`}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Cortes no mês</p>
+                  <p className="text-sm font-medium">
+                    {quota?.limit == null
+                      ? "Ilimitados"
+                      : `${quota.used} de ${quota.limit} usados`}
+                  </p>
+                </div>
               </div>
+
+              {quota?.blocked && (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                  Você já usou todos os cortes deste ciclo. Fale com a barbearia para liberar mais
+                  atendimentos.
+                </div>
+              )}
 
               {(subscription.plan?.benefits?.length ?? 0) > 0 && (
                 <>

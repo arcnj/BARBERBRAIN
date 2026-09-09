@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,6 +90,7 @@ const SLOT_DURATION_MINUTES = 30;
 export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, onAppointmentCreated }: AppointmentSchedulerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { data: quota, refetch: refetchQuota } = useSubscriptionQuota(user?.id);
   const [services, setServices] = useState<Service[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
@@ -365,6 +367,17 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
       });
       return;
     }
+
+    const { data: freshQuota } = await refetchQuota();
+    if (freshQuota?.blocked) {
+      toast({
+        title: "Limite do plano atingido",
+        description: `Seu plano ${freshQuota.planName} permite ${freshQuota.limit} corte(s) por mês e você já usou todos. Fale com a barbearia para liberar mais atendimentos.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
 
     setSubmitting(true);
 
@@ -874,11 +887,31 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
               </p>
             )}
 
+            {quota?.limit != null && (
+              <div
+                className={`mb-4 rounded-lg border p-3 text-sm ${
+                  quota.blocked
+                    ? "border-destructive/50 bg-destructive/10 text-destructive"
+                    : "border-primary/40 bg-primary/5 text-muted-foreground"
+                }`}
+              >
+                {quota.blocked
+                  ? `Você já usou os ${quota.limit} corte(s) do plano ${quota.planName} neste ciclo. Fale com a barbearia para agendar mais.`
+                  : `Plano ${quota.planName}: ${quota.used} de ${quota.limit} corte(s) usados neste ciclo (${quota.remaining} restante(s)).`}
+              </div>
+            )}
+
             <Button
               className="w-full"
               size="lg"
               onClick={handleSubmit}
-              disabled={submitting || selectedServices.length === 0 || !selectedDate || !selectedTime}
+              disabled={
+                submitting ||
+                selectedServices.length === 0 ||
+                !selectedDate ||
+                !selectedTime ||
+                !!quota?.blocked
+              }
             >
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

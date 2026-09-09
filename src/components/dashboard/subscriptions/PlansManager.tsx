@@ -26,9 +26,17 @@ interface Plan {
   price: number;
   benefits: string[];
   active: boolean;
+  monthly_visit_limit: number | null;
 }
 
-const emptyForm = { name: "", description: "", price: "", benefits: "", active: true };
+const emptyForm = {
+  name: "",
+  description: "",
+  price: "",
+  benefits: "",
+  active: true,
+  monthly_visit_limit: "",
+};
 
 export function PlansManager() {
   const queryClient = useQueryClient();
@@ -59,6 +67,10 @@ export function PlansManager() {
           .map((b) => b.trim())
           .filter(Boolean),
         active: form.active,
+        monthly_visit_limit:
+          form.monthly_visit_limit.trim() === ""
+            ? null
+            : Math.max(1, Number(form.monthly_visit_limit)) || null,
       };
       if (!payload.name) throw new Error("Informe o nome do plano");
 
@@ -104,6 +116,8 @@ export function PlansManager() {
       price: String(plan.price),
       benefits: (plan.benefits || []).join("\n"),
       active: plan.active,
+      monthly_visit_limit:
+        plan.monthly_visit_limit != null ? String(plan.monthly_visit_limit) : "",
     });
     setOpen(true);
   };
@@ -150,6 +164,21 @@ export function PlansManager() {
                   placeholder="Ex: 149,90"
                   inputMode="decimal"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Cortes por mês</Label>
+                <Input
+                  value={form.monthly_visit_limit}
+                  onChange={(e) =>
+                    setForm({ ...form, monthly_visit_limit: e.target.value.replace(/\D/g, "") })
+                  }
+                  placeholder="Ex: 4 (vazio = ilimitado)"
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Quantos atendimentos o cliente pode agendar por mês com esse plano. Ao atingir o
+                  limite, novos agendamentos ficam bloqueados até o próximo ciclo.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Descrição</Label>
@@ -208,6 +237,11 @@ export function PlansManager() {
                     {plan.active ? "Ativo" : "Inativo"}
                   </Badge>
                 </div>
+                <Badge variant="outline" className="text-xs">
+                  {plan.monthly_visit_limit != null
+                    ? `${plan.monthly_visit_limit} corte(s) por mês`
+                    : "Cortes ilimitados"}
+                </Badge>
                 {plan.description && (
                   <p className="text-sm text-muted-foreground">{plan.description}</p>
                 )}

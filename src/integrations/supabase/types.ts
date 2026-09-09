@@ -1171,6 +1171,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          monthly_visit_limit: number | null
           name: string
           price: number
           updated_at: string
@@ -1181,6 +1182,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          monthly_visit_limit?: number | null
           name: string
           price?: number
           updated_at?: string
@@ -1191,6 +1193,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          monthly_visit_limit?: number | null
           name?: string
           price?: number
           updated_at?: string
