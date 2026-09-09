@@ -562,6 +562,7 @@ export function AgendaTab() {
 
                 <div className="flex items-center gap-2">
                   <h3 className="font-display font-bold text-lg truncate">{nextAppointment.profiles?.full_name || "Cliente"}</h3>
+                  <SubscriberBadge subscription={getSubscription(nextAppointment.customer_id)} />
                   {isBirthday(nextAppointment.profiles?.birth_date) && (
                     <Badge className="bg-pink-500 text-white border-0 animate-pulse">🎂 Aniversário!</Badge>
                   )}
@@ -915,6 +916,7 @@ export function AgendaTab() {
                             <span className="font-medium truncate flex-1">
                               {order.profiles?.full_name || "Cliente"}
                             </span>
+                            <SubscriberBadge subscription={getSubscription(order.customer_id)} compact />
                             <span className="text-xs text-muted-foreground hidden sm:inline">
                               {serviceName} • {totalDuration}min
                             </span>
