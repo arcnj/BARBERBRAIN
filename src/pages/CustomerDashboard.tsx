@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
 import { SatisfactionPopup } from "@/components/customer/SatisfactionPopup";
+import { MySubscriptionCard } from "@/components/customer/MySubscriptionCard";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -550,6 +551,11 @@ export default function CustomerDashboard() {
               </CardContent>
             </Card>
           )}
+
+          {/* Subscription Card */}
+          <MySubscriptionCard userId={user?.id} />
+
+
 
           {/* Promotions Section */}
           {promotions.length > 0 && (
