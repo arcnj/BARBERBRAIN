@@ -8,6 +8,9 @@ import { BadgeCheck, Check, Loader2, MessageCircle, Receipt, Sparkles } from "lu
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
+import { useMySubscriptionRequest } from "@/hooks/useSubscriptionRequests";
+import { toast } from "sonner";
+
 
 interface Plan {
   id: string;
@@ -48,6 +51,8 @@ export function MySubscriptionTab({
   customerName?: string;
 }) {
   const { data: quota } = useSubscriptionQuota(userId);
+  const { pendingRequest, createRequest } = useMySubscriptionRequest(userId);
+
 
   const { data: subscription, isLoading } = useQuery({
     queryKey: ["my-subscription", userId],
@@ -102,25 +107,62 @@ export function MySubscriptionTab({
     );
   }
 
-  const contactButton = (message: string, label: string) =>
-    barbershopWhatsapp ? (
-      <Button
-        variant="outline"
-        className="gap-2 border-primary/40 text-primary"
-        onClick={() => window.open(whatsappLink(barbershopWhatsapp, message), "_blank")}
-      >
+  const requestButton = (
+    planId: string,
+    kind: "new" | "renewal",
+    subscriptionId: string | null,
+    label: string,
+    message: string,
+  ) => (
+    <Button
+      variant="outline"
+      className="gap-2 border-primary/40 text-primary"
+      disabled={!planId || !!pendingRequest || createRequest.isPending}
+      onClick={async () => {
+        if (!planId) return;
+        await createRequest.mutateAsync({ planId, kind, subscriptionId });
+        toast.success("Pedido enviado! Aguarde a confirmação da barbearia.");
+        if (barbershopWhatsapp) {
+          window.open(whatsappLink(barbershopWhatsapp, message), "_blank");
+        }
+      }}
+    >
+      {createRequest.isPending ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
         <MessageCircle className="h-4 w-4" />
-        {label}
-      </Button>
-    ) : null;
+      )}
+      {pendingRequest ? "Pedido em análise" : label}
+    </Button>
+  );
 
   const days = subscription
     ? differenceInCalendarDays(parseISO(subscription.current_period_end), new Date())
     : 0;
   const active = subscription?.status === "active";
 
+
   return (
     <div className="space-y-6">
+      {pendingRequest && (
+        <Card className="glass border-primary/40 bg-primary/5">
+          <CardContent className="py-4 flex items-start gap-3">
+            <Loader2 className="h-4 w-4 mt-0.5 animate-spin text-primary shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-foreground">
+                Pedido enviado — aguardando confirmação da barbearia
+              </p>
+              <p className="text-muted-foreground">
+                Plano {(pendingRequest.plan as unknown as { name?: string } | null)?.name ?? ""} ·
+                enviado em{" "}
+                {format(parseISO(pendingRequest.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}.
+                Assim que a barbearia confirmar o pagamento, sua assinatura é liberada.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {subscription ? (
         <>
           <Card className="glass border-primary/40 bg-gradient-to-br from-primary/10 to-transparent">
@@ -189,10 +231,14 @@ export function MySubscriptionTab({
                 </>
               )}
 
-              {contactButton(
+              {requestButton(
+                subscription.plan?.id ?? "",
+                "renewal",
+                subscription.id,
+                "Renovar pelo WhatsApp",
                 `Olá! Sou ${customerName || "cliente"} e quero renovar minha assinatura ${subscription.plan?.name ?? ""}.`,
-                "Renovar pelo WhatsApp"
               )}
+
             </CardContent>
           </Card>
 
@@ -256,10 +302,8 @@ export function MySubscriptionTab({
                       ))}
                     </ul>
                   )}
-                  {contactButton(
-                    `Olá! Sou ${customerName || "cliente"} e quero assinar o plano ${plan.name}.`,
-                    "Quero assinar"
-                  )}
+                  {requestButton(plan.id, "new", null, `Quero assinar`, `Olá! Sou ${customerName || "cliente"} e quero assinar o plano ${plan.name}.`)}
+
                 </CardContent>
               </Card>
             ))}
