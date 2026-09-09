@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
+import { useSubscriptionCoverage, evaluateCoverage } from "@/hooks/useSubscriptionCoverage";
+import { CoverageSummary } from "@/components/subscriptions/CoverageSummary";
+
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
