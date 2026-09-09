@@ -970,7 +970,27 @@ export function AgendaTab() {
                   <div className="flex items-center gap-2 text-sm">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span>{selectedOrder.profiles?.full_name}</span>
+                    <SubscriberBadge subscription={getSubscription(selectedOrder.customer_id)} />
                   </div>
+                  {(() => {
+                    const sub = getSubscription(selectedOrder.customer_id);
+                    if (!sub) return null;
+                    return (
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs space-y-1">
+                        <p className="font-medium text-primary">
+                          Cliente assinante · {sub.planName} (R$ {sub.price.toFixed(2)}/mês)
+                        </p>
+                        <p className="text-muted-foreground">
+                          {sub.expired
+                            ? `Assinatura vencida em ${format(new Date(sub.currentPeriodEnd), "dd/MM/yyyy")}`
+                            : `Válida até ${format(new Date(sub.currentPeriodEnd), "dd/MM/yyyy")} · ${sub.daysLeft} dia(s)`}
+                        </p>
+                        {sub.benefits.length > 0 && (
+                          <p className="text-muted-foreground">Inclui: {sub.benefits.join(", ")}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {selectedOrder.profiles?.phone && (
                     <div className="flex items-center gap-2 text-sm">
                       <Phone className="h-4 w-4 text-muted-foreground" />
