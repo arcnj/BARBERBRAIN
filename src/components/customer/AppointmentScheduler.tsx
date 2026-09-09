@@ -89,6 +89,7 @@ const SLOT_DURATION_MINUTES = 30;
 export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, onAppointmentCreated }: AppointmentSchedulerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { data: quota, refetch: refetchQuota } = useSubscriptionQuota(user?.id);
   const [services, setServices] = useState<Service[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
