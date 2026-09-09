@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Helmet } from "react-helmet";
-import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight, Gift, Cake, MessageCircle } from "lucide-react";
+import { Scissors, LogOut, Calendar, Clock, User, Loader2, Megaphone, Percent, BadgeDollarSign, CalendarPlus, ClipboardList, Pencil, XCircle, Package, Plus, Check, Flame, ChevronLeft, ChevronRight, ChevronRight as ArrowRight, Gift, Cake, MessageCircle, BadgeCheck } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentScheduler } from "@/components/customer/AppointmentScheduler";
 import { SatisfactionPopup } from "@/components/customer/SatisfactionPopup";
 import { MySubscriptionCard } from "@/components/customer/MySubscriptionCard";
+import { MySubscriptionTab } from "@/components/customer/MySubscriptionTab";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -553,7 +554,7 @@ export default function CustomerDashboard() {
           )}
 
           {/* Subscription Card */}
-          <MySubscriptionCard userId={user?.id} />
+          <MySubscriptionCard userId={user?.id} onOpen={() => setActiveTab("assinatura")} />
 
 
 
@@ -694,7 +695,7 @@ export default function CustomerDashboard() {
 
           {/* Tabs for Scheduling and Orders */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsList className="grid w-full grid-cols-4 mb-6">
               <TabsTrigger value="agendar" className="flex items-center gap-2">
                 <CalendarPlus className="h-4 w-4" />
                 Agendar
@@ -707,7 +708,20 @@ export default function CustomerDashboard() {
                 <XCircle className="h-4 w-4" />
                 Cancelados
               </TabsTrigger>
+              <TabsTrigger value="assinatura" className="flex items-center gap-2">
+                <BadgeCheck className="h-4 w-4" />
+                Assinatura
+              </TabsTrigger>
             </TabsList>
+
+            {/* Subscription Tab */}
+            <TabsContent value="assinatura">
+              <MySubscriptionTab
+                userId={user?.id}
+                barbershopWhatsapp={barbershopWhatsapp}
+                customerName={customerName}
+              />
+            </TabsContent>
 
             {/* Scheduling Tab */}
             <TabsContent value="agendar">

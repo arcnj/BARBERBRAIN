@@ -12,7 +12,13 @@ interface MySubscription {
   plan: { name: string; price: number } | null;
 }
 
-export function MySubscriptionCard({ userId }: { userId: string | undefined }) {
+export function MySubscriptionCard({
+  userId,
+  onOpen,
+}: {
+  userId: string | undefined;
+  onOpen?: () => void;
+}) {
   const [subscription, setSubscription] = useState<MySubscription | null>(null);
 
   useEffect(() => {
@@ -41,7 +47,8 @@ export function MySubscriptionCard({ userId }: { userId: string | undefined }) {
 
   return (
     <Card
-      className={`mb-6 glass ${expiring ? "border-warning" : "border-primary/40"} bg-gradient-to-r from-primary/10 to-transparent`}
+      onClick={onOpen}
+      className={`mb-6 glass ${expiring ? "border-warning" : "border-primary/40"} bg-gradient-to-r from-primary/10 to-transparent ${onOpen ? "cursor-pointer hover:border-primary transition-colors" : ""}`}
     >
       <CardContent className="py-4">
         <div className="flex items-center gap-3">

@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
+import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
+import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +90,7 @@ export function AgendaTab() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const { getSubscription } = useSubscriptionStatus();
   const [newAppointment, setNewAppointment] = useState({
     customerName: "",
     customerPhone: "",
@@ -562,6 +565,7 @@ export function AgendaTab() {
 
                 <div className="flex items-center gap-2">
                   <h3 className="font-display font-bold text-lg truncate">{nextAppointment.profiles?.full_name || "Cliente"}</h3>
+                  <SubscriberBadge subscription={getSubscription(nextAppointment.customer_id)} />
                   {isBirthday(nextAppointment.profiles?.birth_date) && (
                     <Badge className="bg-pink-500 text-white border-0 animate-pulse">🎂 Aniversário!</Badge>
                   )}
@@ -915,6 +919,7 @@ export function AgendaTab() {
                             <span className="font-medium truncate flex-1">
                               {order.profiles?.full_name || "Cliente"}
                             </span>
+                            <SubscriberBadge subscription={getSubscription(order.customer_id)} compact />
                             <span className="text-xs text-muted-foreground hidden sm:inline">
                               {serviceName} • {totalDuration}min
                             </span>
@@ -965,7 +970,27 @@ export function AgendaTab() {
                   <div className="flex items-center gap-2 text-sm">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span>{selectedOrder.profiles?.full_name}</span>
+                    <SubscriberBadge subscription={getSubscription(selectedOrder.customer_id)} />
                   </div>
+                  {(() => {
+                    const sub = getSubscription(selectedOrder.customer_id);
+                    if (!sub) return null;
+                    return (
+                      <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs space-y-1">
+                        <p className="font-medium text-primary">
+                          Cliente assinante · {sub.planName} (R$ {sub.price.toFixed(2)}/mês)
+                        </p>
+                        <p className="text-muted-foreground">
+                          {sub.expired
+                            ? `Assinatura vencida em ${format(new Date(sub.currentPeriodEnd), "dd/MM/yyyy")}`
+                            : `Válida até ${format(new Date(sub.currentPeriodEnd), "dd/MM/yyyy")} · ${sub.daysLeft} dia(s)`}
+                        </p>
+                        {sub.benefits.length > 0 && (
+                          <p className="text-muted-foreground">Inclui: {sub.benefits.join(", ")}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {selectedOrder.profiles?.phone && (
                     <div className="flex items-center gap-2 text-sm">
                       <Phone className="h-4 w-4 text-muted-foreground" />
