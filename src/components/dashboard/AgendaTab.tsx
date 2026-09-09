@@ -7,6 +7,8 @@ import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
+import { OrderCoverage } from "@/components/subscriptions/OrderCoverage";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1032,11 +1034,12 @@ export function AgendaTab() {
                   <OrderCoverage
                     customerId={selectedOrder.customer_id}
                     services={selectedOrder.order_items.map((item) => ({
-                      id: item.services?.id ?? item.id,
+                      id: item.id,
                       name: item.services?.name ?? "Serviço",
                       price: Number(item.price || 0),
                     }))}
                   />
+
                 </div>
 
 
