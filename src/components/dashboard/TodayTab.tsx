@@ -238,7 +238,7 @@ export function TodayTab() {
     <div className="space-y-6 pb-24 lg:pb-6">
       {/* Greeting */}
       <div className="animate-fade-in">
-        <h2 className="font-display text-2xl font-bold text-foreground">{greeting}, {userName}! ☀️</h2>
+        <h2 className="font-display text-2xl font-bold text-foreground">{greetingText} ☀️</h2>
         <p className="text-muted-foreground mt-1">
           {isAdmin ? "Resumo geral da barbearia" : "Resumo do seu dia"}
         </p>

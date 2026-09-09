@@ -213,7 +213,7 @@ export function StockTab() {
       if (movementError) throw movementError;
 
       // Update product stock and cost if entry
-      const updateData: Record<string, unknown> = { stock_quantity: newStock };
+      const updateData: { stock_quantity: number; cost_price?: number } = { stock_quantity: newStock };
       if (movementType === "entry" && movementCost) {
         updateData.cost_price = parseFloat(movementCost);
       }
@@ -257,9 +257,16 @@ export function StockTab() {
         updateValue = value ? parseFloat(value) : null;
       }
 
+      const updatePayload =
+        field === "expiration_date"
+          ? { expiration_date: updateValue as string | null }
+          : field === "cost_price"
+          ? { cost_price: updateValue as number | null }
+          : { min_stock_quantity: updateValue as number | null };
+
       const { error } = await supabase
         .from("products")
-        .update({ [field]: updateValue })
+        .update(updatePayload)
         .eq("id", productId);
 
       if (error) throw error;
