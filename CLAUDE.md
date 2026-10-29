@@ -19,8 +19,9 @@ npm install            # dependências
 npm run dev            # dev server em http://localhost:8080
 npm run build          # build de produção (precisa passar antes de cada commit)
 npm run lint           # ESLint (precisa passar antes de cada commit)
-npx tsc -p tsconfig.app.json --noEmit   # typecheck (vira `npm run typecheck` na etapa 0.1)
-npm test               # Vitest (a partir da etapa 0.1)
+npm run typecheck      # tsc --noEmit
+npm test               # Vitest (testes em src/**/*.test.ts ao lado do código)
+npm run test:watch     # Vitest em modo watch
 
 # Supabase (a partir da etapa 0.3)
 supabase start                         # banco local
@@ -79,7 +80,7 @@ Features: auth, agenda, agendamento, disponibilidade, barbeiros, clientes, servi
 ## Regras de trabalho (obrigatórias)
 
 1. **Uma etapa do `docs/PLANO.md` por vez**, em branch própria (`etapa-<n>-<slug>`), com **commits pequenos** (Conventional Commits em português, ex.: `fix(rls): ...`, `refactor(agenda): ...`).
-2. **`npm run build` e `npm run lint` precisam passar antes de cada commit** (e `npm test` quando existir).
+2. **`npm run lint`, `npm run typecheck`, `npm test` e `npm run build` precisam passar antes de cada commit.** O CI (`.github/workflows/ci.yml`) roda os mesmos passos em todo PR.
 3. **Nenhuma funcionalidade pode sumir.** Se algo parecer bug ou código morto, **perguntar ao dono antes de remover ou mudar o comportamento.**
 4. **Nada de mudança destrutiva no banco** (DROP de tabela, coluna, função ou política sem substituta; ALTER de coluna com dados; DELETE ou UPDATE em massa de dados) **sem aprovação explícita do dono.** Migrations aditivas são o padrão.
 5. **Escrever testes para a regra de negócio crítica**: agendamento (preço, cupom, combo), disponibilidade de horários e assinaturas (cobertura, ciclos, uso). Mudanças de RLS e RPC vêm com teste pgTAP.

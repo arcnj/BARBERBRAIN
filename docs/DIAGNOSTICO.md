@@ -293,6 +293,7 @@ Ver A-06 e A-09.
 
 #### A-13 · Dependências com vulnerabilidades conhecidas
 - `npm audit`: 30 vulnerabilidades (1 crítica em `jspdf <=4.2.0`, usado na exportação de PDF de clientes; altas em `react-router`/`@remix-run/router`, `dompurify`, `glob`, `brace-expansion`). Todas com `npm audit fix` disponível, sem breaking change aparente.
+- **Status (Etapa 0.1)**: `npm audit fix` aplicado (jspdf 4.2.1, dompurify, glob, brace-expansion e outras). Restam 5 em produção (react-router 6 moderada: a correção exige a v7; zod 3 alta, usado em 1 arquivo; uuid via exceljs) e algumas em ferramentas de desenvolvimento (vitest 2/vite 5). Todas exigem atualização de versão major, a ser avaliada na Fase 4.
 
 ### 🟡 MÉDIO
 
