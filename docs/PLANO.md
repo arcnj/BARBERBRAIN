@@ -51,6 +51,7 @@
 - `.env` no `.gitignore` e criação de `.env.example` com as 3 variáveis (sem valores reais). Tirar o `.env` do controle de versão com `git rm --cached` (o arquivo local continua existindo).
 - Documentar onde configurar as variáveis no host do front.
 - Corrigir `index.html` (título, descrição e OG do BarberBrain, `lang="pt-BR"`).
+- **Link para testar**: `vercel.json` com rewrite de SPA (para `/cliente`, `/dashboard` etc. funcionarem ao atualizar a página). O dono conecta o repositório na Vercel e cadastra as 3 variáveis; a partir daí cada PR ganha um link de pré-visualização e o `main` tem um link fixo.
 
 **Riscos**: quem clonar o repo precisa criar o `.env` a partir do exemplo (documentado no CLAUDE.md). A chave publishable continua no histórico do git, o que é aceitável porque ela é pública por natureza. Se ainda assim quiser, dá para rotacioná-la no painel.
 **Validar**: `git status` não mostra `.env`; build local com `.env` criado do exemplo.
