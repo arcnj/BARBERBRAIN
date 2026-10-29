@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import type { SurveyAnswers } from "@/types/satisfaction";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -31,7 +33,7 @@ interface SatisfactionResponse {
   order_id: string;
   customer_id: string;
   barber_id: string | null;
-  responses: Record<string, any>;
+  responses: SurveyAnswers;
   created_at: string;
   barber_name?: string | null;
   customer_name?: string;
@@ -134,7 +136,7 @@ export function SatisfactionTab() {
   // Save question mutation
   const saveQuestionMutation = useMutation({
     mutationFn: async (question: Partial<SatisfactionQuestion>) => {
-      let optionsData: any = null;
+      let optionsData: Json = null;
       if (questionForm.question_type === "scale") {
         optionsData = { min: 0, max: 10 };
       } else if (questionForm.question_type === "options" && questionForm.options) {

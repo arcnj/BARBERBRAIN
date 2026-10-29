@@ -36,6 +36,7 @@ import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil, KeyRound, Check, C
 import { Switch } from "@/components/ui/switch";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { Badge } from "@/components/ui/badge";
+import { getErrorMessage } from "@/lib/errors";
 
 interface Barber {
   id: string;
@@ -408,9 +409,9 @@ export function BarbersTab() {
       
       toast.success("Login criado com sucesso!");
       fetchBarbers();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating login:", error);
-      toast.error(error.message || "Erro ao criar login");
+      toast.error(getErrorMessage(error, "Erro ao criar login"));
     } finally {
       setCreatingLogin(false);
     }
@@ -469,9 +470,9 @@ export function BarbersTab() {
       });
       
       toast.success("Senha redefinida com sucesso!");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error resetting password:", error);
-      toast.error(error.message || "Erro ao redefinir senha");
+      toast.error(getErrorMessage(error, "Erro ao redefinir senha"));
     } finally {
       setResettingPassword(false);
     }

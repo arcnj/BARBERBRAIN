@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { SurveyAnswers } from "@/types/satisfaction";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,7 +32,7 @@ interface SatisfactionPopupProps {
 export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [isCompleted, setIsCompleted] = useState(false);
 
   // Check if survey is enabled
@@ -147,7 +148,7 @@ export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
     return true;
   };
 
-  const handleAnswer = (value: any) => {
+  const handleAnswer = (value: string | number) => {
     const key = `q${currentQuestion.question_order}`;
     setAnswers({ ...answers, [key]: value });
   };

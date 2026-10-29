@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield, CheckCircle, Copy } from "lucide-react";
+import { getErrorMessage } from "@/lib/errors";
 
 interface MFAEnrollProps {
   onEnrolled: () => void;
@@ -99,11 +100,11 @@ export function MFAEnroll({ onEnrolled, onSkip }: MFAEnrollProps) {
         description: "A autenticação de dois fatores foi configurada com sucesso",
       });
       onEnrolled();
-    } catch (err: any) {
+    } catch (err) {
       console.error("MFA verify error:", err);
       toast({
         title: "Erro ao verificar",
-        description: err.message || "Não foi possível verificar o código",
+        description: getErrorMessage(err, "Não foi possível verificar o código"),
         variant: "destructive",
       });
     } finally {

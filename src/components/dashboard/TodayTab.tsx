@@ -403,7 +403,7 @@ export function TodayTab() {
           </p>
         ) : (
           <div className="space-y-3">
-            {upcomingAppointments.map((apt: any) => (
+            {upcomingAppointments.map((apt) => (
               <div 
                 key={apt.id}
                 className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"

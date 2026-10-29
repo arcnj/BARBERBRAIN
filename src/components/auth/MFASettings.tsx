@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield, ShieldCheck, ShieldOff, Plus, Trash2 } from "lucide-react";
 import { MFAEnroll } from "./MFAEnroll";
+import { getErrorMessage } from "@/lib/errors";
 
 interface MFAFactor {
   id: string;
@@ -73,11 +74,11 @@ export function MFASettings() {
         description: "A autenticação de dois fatores foi desativada",
       });
       loadFactors();
-    } catch (err: any) {
+    } catch (err) {
       console.error("Remove factor error:", err);
       toast({
         title: "Erro",
-        description: err.message || "Não foi possível remover o 2FA",
+        description: getErrorMessage(err, "Não foi possível remover o 2FA"),
         variant: "destructive",
       });
     } finally {

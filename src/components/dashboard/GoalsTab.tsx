@@ -95,7 +95,7 @@ export function GoalsTab() {
   const { data: goals, isLoading: goalsLoading } = useQuery({
     queryKey: ['barber-goals', currentMonth, currentYear],
     queryFn: async () => {
-      let query = supabase
+      const query = supabase
         .from('barber_goals')
         .select(`
           *,
@@ -207,7 +207,7 @@ export function GoalsTab() {
         .lte('scheduled_at', endDate.toISOString());
       
       value = data?.reduce((sum, o) => 
-        sum + (o.order_products?.reduce((s: number, p: any) => s + (p.quantity || 0), 0) || 0)
+        sum + (o.order_products?.reduce((s, p) => s + (p.quantity || 0), 0) || 0)
       , 0) || 0;
     }
 
