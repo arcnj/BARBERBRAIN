@@ -44,7 +44,8 @@ src/
 │   ├── assinaturas/             # planos, ciclos, uso, pagamentos, pedidos, lembretes
 │   ├── satisfacao/              # pesquisa, perguntas, respostas
 │   ├── analista/                # indicadores e sugestões
-│   └── configuracoes/           # dados da barbearia, horário de funcionamento, perfil
+│   ├── configuracoes/           # dados da barbearia, horário de funcionamento, perfil
+│   └── plataforma/              # página de vendas, cadastro da barbearia, cobrança do BarberBrain
 │
 ├── shared/
 │   ├── ui/                      # shadcn (antigo components/ui), só os usados
@@ -264,7 +265,7 @@ Decisão do dono (2026-10-29): cada barbearia assinante tem seu espaço isolado.
 ```
 barbershops          (id, name, slug UNIQUE, status: active|suspended, created_at)
 barbershop_members   (barbershop_id, user_id, role: admin|barber|customer, UNIQUE(barbershop_id, user_id))
-platform_admins      (user_id)   -- você, dono da plataforma; cria e suspende barbearias
+platform_admins      (user_id)   -- você, dono da plataforma: suporte e visão geral (não cria barbearias)
 ```
 - `barbershop_members` substitui `user_roles`: o papel passa a ser **por barbearia**. `user_roles` fica até a Fase 4.
 - Todas as tabelas de negócio ganham `barbershop_id uuid NOT NULL REFERENCES barbershops`, com índice. Tabelas filhas (`order_items`, `order_products`, `subscription_usages`…) também carregam a coluna, com FK composta `(barbershop_id, order_id)` para impedir referência cruzada.
@@ -312,3 +313,25 @@ Caminho dos arquivos: `<barbershop_id>/<pasta>/<arquivo>`. As políticas checam 
 ### Testes de isolamento (obrigatórios)
 - pgTAP que percorre `information_schema.tables` do schema `public` e falha se alguma tabela de negócio não tiver `barbershop_id`, RLS habilitado e políticas.
 - Cenário com duas barbearias: para cada papel da barbearia A, tentar SELECT/INSERT/UPDATE/DELETE em dados da B, e tudo deve falhar ou voltar vazio.
+
+### Onboarding e cobrança (a barbearia assina sozinha)
+
+```
+Página de vendas (/) ──"Assinar"──▶ /assinar (dados do dono + barbearia + slug)
+   └─▶ RPC create_barbershop  → barbershops(status='trial') + barbershop_members(role='admin') + configurações padrão
+   └─▶ painel /painel (7 dias de teste)
+   └─▶ "Assinar agora" ─▶ edge fn create-checkout ─▶ checkout do provedor
+                                         provedor ──webhook──▶ edge fn billing-webhook
+                                                                 └─▶ billing_events (idempotência)
+                                                                 └─▶ barbershop_billing + barbershops.status
+Dono (admin) ─▶ cadastra barbeiros (create-barber-user, escopo da barbearia dele)
+Clientes     ─▶ se cadastram pelo link /b/<slug> da barbearia
+```
+
+Status da barbearia: `trial → active → past_due → suspended | cancelled`. A função `is_member()` só considera barbearias com acesso liberado, e o efeito para barbearias suspensas (bloqueio total ou só leitura) será definido pelo dono.
+
+Dois tipos de "assinatura", que nunca se misturam:
+| | Quem paga | Para quem | Tabelas | Feature |
+|---|---|---|---|---|
+| Assinatura da plataforma | barbearia | BarberBrain | `platform_plans`, `barbershop_billing`, `billing_events` | `plataforma` |
+| Assinatura de clientes | cliente da barbearia | barbearia | `subscription_*` (já existentes) | `assinaturas` |

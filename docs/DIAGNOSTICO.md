@@ -17,7 +17,7 @@ Qualquer pessoa com o app aberto e o console do navegador consegue contornar as 
 |---|---|---|
 | **Crítico** | 5 | Barbeiro tem poder de admin no banco · cliente altera o próprio pedido (status, preço) · barbeiro lança a própria comissão · disponibilidade de horários não enxerga a agenda (overbooking) · não existe isolamento entre barbearias |
 | **Alto** | 13 | Premiação de meta duplicada · bucket `barbershop` gravável por clientes · e-mail e telefone dos barbeiros expostos · cupom de aniversário reutilizável · barbeiro excluído continua com acesso · uso de assinatura provavelmente nunca é registrado · edge functions frágeis · dependência do Lovable para WhatsApp |
-| **Médio** | 16 | Duplicação de regra de negócio · componentes gigantes · `useEffect` buscando dados · TypeScript frouxo · bundle de 3 MB · datas em UTC |
+| **Médio** | 17 | Duplicação de regra de negócio · componentes gigantes · `useEffect` buscando dados · TypeScript frouxo · bundle de 3 MB · datas em UTC |
 | **Baixo** | 11 | Código morto · dependências sem uso · resquícios do Lovable |
 
 **Ferramentas**: `npm run build` ✅ (com aviso de chunk de 2,99 MB) · `npm run lint` ❌ (26 erros, 15 avisos) ·
@@ -314,6 +314,7 @@ Ver A-06 e A-09.
 | M-14 | "Mais vendidos" do cliente usa `order_products`, que o RLS filtra para os pedidos do próprio cliente; o ranking reflete só as compras dele | `CustomerDashboard.tsx:289-313`, `CustomerProducts.tsx:105` |
 | M-15 | `.env` versionado e não ignorado (`.gitignore` não lista `.env`). Hoje só há a chave *publishable* (pública por natureza), mas o padrão convida a commitar a service role no futuro | `.env`, `.gitignore` |
 | M-16 | `send-subscription-reminders`: lock não atômico, comparação de segredo não constante, data-alvo em UTC, erro interno devolvido ao chamador | seção 3 |
+| M-17 | A página de vendas anuncia os planos Básico (R$ 99,90) e Pro (R$ 199,90) com 7 dias grátis, mas todos os botões "Assinar" levam a `/auth`, que cria uma conta de **cliente**. Não existe cobrança da plataforma, e a diferença entre os planos não é aplicada em lugar nenhum | `Landing.tsx:152-186,301-371` |
 
 ### 🟢 BAIXO
 
@@ -402,6 +403,7 @@ A migração é a **Etapa 0** do plano: as correções de segurança precisam ro
 
 **Respondidas (2026-10-29):**
 - ✅ **Multi-tenant** (C-05): cada barbearia tem seu espaço isolado no mesmo banco.
+- ✅ **Cadastro self-service**: o dono da barbearia assina sozinho pelo site, cria o próprio acesso e é o admin da barbearia dele.
 - ✅ **Barbeiro** (não admin): vê a agenda e os clientes, muda o status **dos próprios** atendimentos e vê as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
 
 **Em aberto:**

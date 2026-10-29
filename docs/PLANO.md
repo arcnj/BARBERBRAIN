@@ -11,7 +11,7 @@
 | Fase | Etapas | Objetivo |
 |---|---|---|
 | **0. Fundação** | 0.1 – 0.3 | Portão de qualidade (lint, testes, CI) e **controle do banco** |
-| **1. Multi-tenant + segurança** | 1.0 – 1.8 | Isolar as barbearias, fechar as brechas de RLS e mover a regra crítica para o banco |
+| **1. Multi-tenant + segurança** | 1.0 – 1.9 | Isolar as barbearias, fechar as brechas de RLS, mover a regra crítica para o banco e permitir que a barbearia assine sozinha |
 | **2. Base do front** | 2.1 – 2.3 | Utilitários compartilhados, roteamento e estrutura `features/` |
 | **3. Migração por feature** | 3.1 – 3.12 | Uma feature por etapa, da mais simples para a mais complexa |
 | **4. Acabamento** | 4.1 – 4.4 | TypeScript estrito, limpeza, performance e resquícios do Lovable |
@@ -19,6 +19,7 @@
 **Decisões tomadas (2026-10-29)**
 - ✅ **Multi-tenant**: cada barbearia assinante tem seu espaço isolado num único banco (`barbershop_id` + RLS). Ver Etapa 1.0 e `ARQUITETURA.md` §10.
 - ✅ **Barbeiro (não admin)**: vê a agenda e os clientes, muda o status dos próprios atendimentos e vê as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
+- ✅ **Cadastro self-service**: o dono da barbearia assina sozinho pela página de vendas, cria o próprio acesso e vira o **admin** da barbearia dele; depois cadastra os barbeiros. Ver Etapas 1.0f e 1.9.
 - ✅ **Banco**: Supabase numa conta **do dono** (Postgres gerenciado na nuvem + Auth + Storage + Edge Functions). Com multi-tenant, um único projeto atende todas as barbearias.
 
 **Ainda em aberto** (DIAGNOSTICO §7): existem dados reais a preservar? Barbeiro vê a agenda de todos ou só a dele? Um cliente pode estar em duas barbearias?
@@ -77,7 +78,7 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 - **1.0c · Membros**: copiar `user_roles` para `barbershop_members` da barbearia nº 1. `user_roles` **continua existindo** até a Fase 4 (removê-la exigirá aprovação).
 - **1.0d · Políticas**: reescrever o RLS de todas as tabelas com `is_member(barbershop_id)` + papel, já com as regras de barbeiro aprovadas (absorve a Etapa 1.3). Storage com caminho `<barbershop_id>/...`.
 - **1.0e · Front e edge functions**: contexto da barbearia atual (`BarbershopProvider`), cadastro de cliente pelo link da barbearia (`/b/<slug>`), `barbershop_id` em todos os inserts, edge functions validando "admin desta barbearia".
-- **1.0f · Criar barbearia nova**: inicialmente pelo administrador da plataforma (você), com uma edge function que cria a barbearia, o dono e as configurações padrão. Cadastro self-service com cobrança é uma **funcionalidade nova**, fora deste plano até você pedir.
+- **1.0f · Cadastro da barbearia (self-service)**: o dono se cadastra sozinho pela página de vendas (`/assinar`) informando nome, e-mail, senha, nome da barbearia e endereço do link (`slug`). A RPC `create_barbershop` cria, numa transação, a barbearia (status `trial`), o vínculo dele como **admin** e as configurações padrão. Ele entra direto no painel. A cobrança vem na Etapa 1.9.
 
 **Riscos**: é a maior mudança do plano. Uma tabela esquecida sem `barbershop_id` vaza dados. Mitigação: **teste pgTAP automático que percorre todas as tabelas de `public`** e falha se alguma não tiver `barbershop_id` + RLS, mais testes com dois tenants (usuário da barbearia A não lê, não grava e não apaga nada da B).
 **Validar**: duas barbearias de teste com dados; logins de admin, barbeiro e cliente de cada uma; nenhuma tela mostra dado da outra; a barbearia nº 1 continua funcionando exatamente como antes.
@@ -158,6 +159,20 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 **O que muda**: políticas de admin exigem `aal2` quando o usuário tem fator verificado.
 **Riscos**: admin sem acesso se perder o autenticador. Precisa de um procedimento de recuperação. **Só com a sua aprovação.**
 
+### Etapa 1.9 · Cobrança da plataforma (a barbearia paga o BarberBrain)
+Funcionalidade nova pedida pelo dono (2026-10-29): a barbearia assina sozinha pelo site.
+**O que muda**
+- Tabelas `platform_plans` (Básico R$ 99,90 e Pro R$ 199,90, como na Landing hoje), `barbershop_billing` (plano, status, fim do período, IDs do provedor) e `billing_events` (eventos do webhook, para idempotência). Nomes distintos de `subscription_*`, que continuam sendo as assinaturas **dos clientes da barbearia**.
+- Edge function `create-checkout`: gera o checkout do provedor de pagamento para o admin da barbearia.
+- Edge function `billing-webhook`: valida a assinatura do provedor, grava o evento uma única vez e atualiza `barbershops.status` (`trial` → `active` → `past_due` → `suspended` / `cancelled`).
+- Teste grátis de 7 dias (como diz a Landing), depois cobrança recorrente.
+- Barbearia suspensa: comportamento a definir por você (ver aprovações).
+- Diferença entre os planos Básico e Pro aplicada no banco e na UI (`barbershop_has_feature(shop, 'produtos')`), se você confirmar.
+- Página de vendas: os botões "Assinar" levam a `/assinar` (hoje levam ao cadastro de **cliente**, M-17); tela "Minha assinatura do BarberBrain" no painel do admin (trocar plano, cartão, cancelar).
+
+**Riscos**: dinheiro e acesso. Webhook duplicado ou fora de ordem; barbearia bloqueada por engano. Mitigação: idempotência por ID do evento, ambiente de testes do provedor (sandbox), tolerância de alguns dias antes de suspender e testes pgTAP do bloqueio.
+**Validar**: no sandbox, assinar → trial → pagamento aprovado → `active`; pagamento recusado → `past_due` → `suspended` após a tolerância; reativar pagando; webhook repetido não duplica nada.
+
 ---
 
 ## FASE 2: Base do front
@@ -226,6 +241,7 @@ Cada etapa segue o mesmo roteiro:
 | 1.0b | Preencher `barbershop_id` dos dados existentes com a barbearia nº 1 (UPDATE em massa) |
 | 1.0d | Barbeiro vê a agenda de todos ou só a própria; cliente em mais de uma barbearia |
 | 1.3 | ~~Permissões finais do barbeiro~~ ✅ aprovado |
+| 1.9 | Provedor de pagamento; o que acontece com a barbearia inadimplente; limitar funções por plano (Básico × Pro) |
 | 1.4 | Tratamento de registros financeiros duplicados já existentes (se houver) |
 | 1.6 | "Excluir barbeiro" passa a ser "Desativar" |
 | 1.8 | Exigir MFA no banco |
