@@ -22,7 +22,14 @@
 - ✅ **Cadastro self-service**: o dono da barbearia assina sozinho pela página de vendas, cria o próprio acesso e vira o **admin** da barbearia dele; depois cadastra os barbeiros. Ver Etapas 1.0f e 1.9.
 - ✅ **Banco**: Supabase numa conta **do dono** (Postgres gerenciado na nuvem + Auth + Storage + Edge Functions). Com multi-tenant, um único projeto atende todas as barbearias.
 
-**Ainda em aberto** (DIAGNOSTICO §7): existem dados reais a preservar? Barbeiro vê a agenda de todos ou só a dele? Um cliente pode estar em duas barbearias?
+- ✅ **Barbeiro vê só a própria agenda** (e os clientes da barbearia).
+- ✅ **Cliente em várias barbearias**: permitido (mesmo e-mail, vínculo por barbearia, seletor de barbearia no app do cliente).
+- ✅ **Sem dados reais**: o projeto não está no ar. A Etapa 0.3 segue o caminho "começar do zero" num Supabase próprio, sem migração de dados.
+- ✅ **Inadimplência**: tolerância → só leitura → bloqueio (prazos sugeridos na Etapa 1.9).
+- ✅ **Preços**: Básico R$ 119,90/mês com 5 barbeiros incluídos e R$ 20/mês por barbeiro adicional; Pro R$ 250,00/mês com barbeiros ilimitados. A distribuição de funções entre os planos está em `ARQUITETURA.md` §11 (**proposta aguardando confirmação**).
+- ✅ **Link para testar**: front publicado na Vercel ligada ao GitHub (um link por PR e um link fixo do `main`) + Supabase próprio de staging. Ver Etapa 0.2.
+
+**Ainda em aberto**: provedor de pagamento (recomendação: Asaas, ver Etapa 1.9) e confirmação da distribuição de funções por plano.
 
 ---
 
@@ -162,12 +169,15 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 ### Etapa 1.9 · Cobrança da plataforma (a barbearia paga o BarberBrain)
 Funcionalidade nova pedida pelo dono (2026-10-29): a barbearia assina sozinha pelo site.
 **O que muda**
-- Tabelas `platform_plans` (Básico R$ 99,90 e Pro R$ 199,90, como na Landing hoje), `barbershop_billing` (plano, status, fim do período, IDs do provedor) e `billing_events` (eventos do webhook, para idempotência). Nomes distintos de `subscription_*`, que continuam sendo as assinaturas **dos clientes da barbearia**.
+- Tabelas `platform_plans` (Básico R$ 119,90 com 5 barbeiros incluídos + R$ 20 por adicional; Pro R$ 250,00 ilimitado), `barbershop_billing` (plano, status, fim do período, IDs do provedor) e `billing_events` (eventos do webhook, para idempotência). Nomes distintos de `subscription_*`, que continuam sendo as assinaturas **dos clientes da barbearia**.
 - Edge function `create-checkout`: gera o checkout do provedor de pagamento para o admin da barbearia.
 - Edge function `billing-webhook`: valida a assinatura do provedor, grava o evento uma única vez e atualiza `barbershops.status` (`trial` → `active` → `past_due` → `suspended` / `cancelled`).
-- Teste grátis de 7 dias (como diz a Landing), depois cobrança recorrente.
-- Barbearia suspensa: comportamento a definir por você (ver aprovações).
-- Diferença entre os planos Básico e Pro aplicada no banco e na UI (`barbershop_has_feature(shop, 'produtos')`), se você confirmar.
+- Teste grátis de 7 dias com as funções do Pro, depois cobrança recorrente no plano escolhido.
+- **Preço variável do Básico**: `valor = 119,90 + 20 × max(0, barbeiros_ativos − 5)`. Ao cadastrar o 6º barbeiro em diante, o admin vê a confirmação "isto adiciona R$ 20,00/mês" e o valor da assinatura no provedor é atualizado para a **próxima** fatura (sem cobrança proporcional). Desativar barbeiro reduz a próxima fatura. Função pura `domain/pricing.ts` com testes. A partir de 12 barbeiros o Pro fica mais barato (R$ 259,90 × R$ 250,00); a tela sugere a troca.
+- Contagem: barbeiros com `active = true` na barbearia (o dono conta se também estiver cadastrado como barbeiro).
+- Inadimplência (✅ aprovado): pagamento vencido → **7 dias de tolerância** com aviso no painel → **só leitura** (vê tudo, não cria nem altera; clientes não conseguem agendar) → **bloqueio** após 30 dias. Ao pagar, reativa na hora. Os prazos são configuráveis.
+- Diferença entre os planos aplicada **no banco** (`barbershop_has_feature(shop, 'produtos')` nas políticas e RPCs) e na UI (abas bloqueadas com convite para o Pro), conforme `ARQUITETURA.md` §11.
+- **Provedor recomendado: Asaas** (motivos no resumo da sessão e em `ARQUITETURA.md` §11).
 - Página de vendas: os botões "Assinar" levam a `/assinar` (hoje levam ao cadastro de **cliente**, M-17); tela "Minha assinatura do BarberBrain" no painel do admin (trocar plano, cartão, cancelar).
 
 **Riscos**: dinheiro e acesso. Webhook duplicado ou fora de ordem; barbearia bloqueada por engano. Mitigação: idempotência por ID do evento, ambiente de testes do provedor (sandbox), tolerância de alguns dias antes de suspender e testes pgTAP do bloqueio.
@@ -237,11 +247,11 @@ Cada etapa segue o mesmo roteiro:
 
 | Momento | O que |
 |---|---|
-| Antes da 0.3 | Caminho A ou B (backend) e se há dados reais a migrar |
+| Antes da 0.3 | ~~Caminho A ou B~~ ✅ Supabase próprio, começando do zero (sem dados reais) |
 | 1.0b | Preencher `barbershop_id` dos dados existentes com a barbearia nº 1 (UPDATE em massa) |
-| 1.0d | Barbeiro vê a agenda de todos ou só a própria; cliente em mais de uma barbearia |
+| 1.0d | ~~Agenda do barbeiro; cliente em mais de uma barbearia~~ ✅ só a própria; permitido |
 | 1.3 | ~~Permissões finais do barbeiro~~ ✅ aprovado |
-| 1.9 | Provedor de pagamento; o que acontece com a barbearia inadimplente; limitar funções por plano (Básico × Pro) |
+| 1.9 | Provedor de pagamento (recomendado: Asaas); confirmar a distribuição de funções por plano. ~~Inadimplência~~ ✅ |
 | 1.4 | Tratamento de registros financeiros duplicados já existentes (se houver) |
 | 1.6 | "Excluir barbeiro" passa a ser "Desativar" |
 | 1.8 | Exigir MFA no banco |

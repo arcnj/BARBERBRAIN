@@ -406,10 +406,11 @@ A migração é a **Etapa 0** do plano: as correções de segurança precisam ro
 - ✅ **Cadastro self-service**: o dono da barbearia assina sozinho pelo site, cria o próprio acesso e é o admin da barbearia dele.
 - ✅ **Barbeiro** (não admin): vê a agenda e os clientes, muda o status **dos próprios** atendimentos e vê as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
 
+- ✅ **Backend**: não há dados reais; o projeto ainda não está no ar. Começar do zero num Supabase próprio.
+- ✅ **Agenda do barbeiro**: só a própria.
+- ✅ **Cliente em várias barbearias**: permitido.
+
 **Em aberto:**
-1. **Backend**: o projeto `daxylowysfvzpglnxahj` aparece no seu painel do Supabase? Há dados reais em produção que precisam ser preservados?
-2. **Agenda do barbeiro**: ele vê os horários de todos os barbeiros da barbearia ou só os dele?
-3. **Cliente em várias barbearias**: a mesma pessoa (mesmo e-mail) pode ser cliente de duas barbearias diferentes?
 4. **Walk-in** (A-08): cadastrar cliente sem conta pela agenda é um fluxo usado? Hoje ele falha.
 5. **Estoque** (M-03): a venda de produto num atendimento deveria baixar o estoque automaticamente?
 6. **Código morto** (B-01): `Index.tsx`, `BusinessTab`, `SuggestionsTab`, `NewOrderDialog` e `useMFA` podem ser removidos, ou algum deles deveria estar em uso?

@@ -328,10 +328,48 @@ Dono (admin) ─▶ cadastra barbeiros (create-barber-user, escopo da barbearia 
 Clientes     ─▶ se cadastram pelo link /b/<slug> da barbearia
 ```
 
-Status da barbearia: `trial → active → past_due → suspended | cancelled`. A função `is_member()` só considera barbearias com acesso liberado, e o efeito para barbearias suspensas (bloqueio total ou só leitura) será definido pelo dono.
+Status da barbearia: `trial → active → past_due → suspended | cancelled`. A função `is_member()` só considera barbearias com acesso liberado, com este efeito: `past_due` (até 7 dias) = acesso normal com aviso; `read_only` = só SELECT para a equipe e nenhum agendamento novo; `suspended` (após 30 dias) = sem acesso, só a tela de pagamento.
 
 Dois tipos de "assinatura", que nunca se misturam:
 | | Quem paga | Para quem | Tabelas | Feature |
 |---|---|---|---|---|
 | Assinatura da plataforma | barbearia | BarberBrain | `platform_plans`, `barbershop_billing`, `billing_events` | `plataforma` |
 | Assinatura de clientes | cliente da barbearia | barbearia | `subscription_*` (já existentes) | `assinaturas` |
+
+---
+
+## 11. Planos da plataforma (Básico × Pro)
+
+| | **Básico** | **Pro** |
+|---|---|---|
+| Preço | R$ 119,90/mês | R$ 250,00/mês |
+| Barbeiros | 5 incluídos + **R$ 20,00/mês por barbeiro adicional** | **ilimitados** |
+
+**Distribuição de funções**. *Proposta aguardando confirmação do dono.* Critério: o Básico **opera** a barbearia; o Pro faz a barbearia **crescer e reter clientes**.
+
+| Função | Básico | Pro |
+|---|:-:|:-:|
+| Hoje (visão do dia) | ✓ | ✓ |
+| Agenda da equipe + agendamento online pelo cliente (link `/b/<slug>`) | ✓ | ✓ |
+| Clientes: cadastro e histórico | ✓ | ✓ |
+| Barbeiros: cadastro e login | ✓ (5 + adicionais) | ✓ ilimitado |
+| Serviços e combos | ✓ | ✓ |
+| Comissões e extrato do barbeiro | ✓ | ✓ |
+| Configurações (horários, WhatsApp manual, logo) | ✓ | ✓ |
+| Metas com premiação | — | ✓ |
+| Clientes: segmentação (VIP, em risco, perdidos) e exportação PDF/Excel | — | ✓ |
+| Produtos, estoque e venda de produto no agendamento | — | ✓ |
+| Promoções | — | ✓ |
+| Aniversariantes e cupons automáticos | — | ✓ |
+| Clube de assinatura para os clientes da barbearia | — | ✓ |
+| Pesquisa de satisfação | — | ✓ |
+| Analista (indicadores e sugestões) | — | ✓ |
+| Lembretes automáticos por WhatsApp | — | ✓ |
+
+Regras técnicas:
+- Tabela `platform_plan_features (plan_id, feature)` e função `barbershop_has_feature(shop, feature)`, usadas nas **políticas e RPCs** (a UI só esconde; quem bloqueia é o banco).
+- Rebaixar de Pro para Básico **não apaga dados**: as funções do Pro ficam inacessíveis até voltar ao Pro.
+- O trial de 7 dias libera as funções do Pro.
+- Preço do Básico calculado por função pura `features/plataforma/domain/pricing.ts`, com testes (0, 5, 6 e 12 barbeiros; troca de plano).
+
+**Provedor de pagamento: Asaas (recomendado).** Assinatura recorrente com Pix, boleto e cartão; API para alterar o valor da assinatura (necessária para o adicional por barbeiro); webhooks; sandbox gratuito. Alternativas: Mercado Pago (recorrência forte só no cartão) e Stripe (excelente em cartão e cobrança por assento, mas Pix e boleto recorrentes são o ponto fraco no Brasil). A integração fica isolada em `supabase/functions/_shared/billing/` para permitir trocar de provedor.
