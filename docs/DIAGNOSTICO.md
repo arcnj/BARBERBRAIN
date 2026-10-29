@@ -232,7 +232,7 @@ Ver A-06 e A-09.
 #### C-05 · Não existe isolamento entre barbearias (single-tenant)
 - **Evidência**: nenhuma tabela tem `barbershop_id`; as configurações são de linha única com ID fixo (`mig 20260106012735:12-14`). O PRD (`README.md`) descreve um "SaaS B2B para 1-20 unidades".
 - **Impacto**: se hoje existe **um projeto Supabase por barbearia**, o isolamento é físico e está ok. Se o plano é atender várias barbearias **no mesmo banco**, todo cliente e todo barbeiro de uma barbearia veria os dados das outras. Isso não existe hoje e exigiria refazer o schema e todas as políticas.
-- **Decisão necessária (sua)**: (a) manter 1 projeto por barbearia (recomendado agora, sem mudança de produto) ou (b) planejar multi-tenancy como projeto separado, depois desta reconstrução. Este plano assume **(a)** até você decidir.
+- **Decisão do dono (2026-10-29)**: cada barbearia assinante tem o próprio espaço, e uma barbearia nunca vê os dados de outra. Adotado: **multi-tenant num único banco**, com `barbershop_id` em todas as tabelas e isolamento por RLS. O desenho está em `docs/ARQUITETURA.md` §10 e a implementação na Fase 1 do `docs/PLANO.md` (Etapa 1.0).
 
 ### 🟠 ALTO
 
@@ -400,9 +400,14 @@ A migração é a **Etapa 0** do plano: as correções de segurança precisam ro
 
 ## 7. Perguntas para você (antes de mexer)
 
-1. **Multi-tenant** (C-05): hoje é uma barbearia por projeto. Esse é o modelo de negócio, ou a ideia é várias barbearias no mesmo banco?
-2. **Backend**: o projeto `daxylowysfvzpglnxahj` aparece no seu painel do Supabase?
-3. **Barbeiro**: o que ele **deve** poder fazer? Proposta: ver a agenda e os clientes, mudar o status **dos próprios** atendimentos, ver as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
+**Respondidas (2026-10-29):**
+- ✅ **Multi-tenant** (C-05): cada barbearia tem seu espaço isolado no mesmo banco.
+- ✅ **Barbeiro** (não admin): vê a agenda e os clientes, muda o status **dos próprios** atendimentos e vê as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
+
+**Em aberto:**
+1. **Backend**: o projeto `daxylowysfvzpglnxahj` aparece no seu painel do Supabase? Há dados reais em produção que precisam ser preservados?
+2. **Agenda do barbeiro**: ele vê os horários de todos os barbeiros da barbearia ou só os dele?
+3. **Cliente em várias barbearias**: a mesma pessoa (mesmo e-mail) pode ser cliente de duas barbearias diferentes?
 4. **Walk-in** (A-08): cadastrar cliente sem conta pela agenda é um fluxo usado? Hoje ele falha.
 5. **Estoque** (M-03): a venda de produto num atendimento deveria baixar o estoque automaticamente?
 6. **Código morto** (B-01): `Index.tsx`, `BusinessTab`, `SuggestionsTab`, `NewOrderDialog` e `useMFA` podem ser removidos, ou algum deles deveria estar em uso?

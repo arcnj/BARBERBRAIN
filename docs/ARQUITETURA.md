@@ -253,3 +253,62 @@ As funções puras de `domain/` (ex.: `generateSlots`, `evaluateCoverage`, `comp
 - `supabase/tests/*.sql` com pgTAP para RLS e RPCs.
 - Desenvolvimento local com `supabase start`; nada de testar migration direto em produção.
 - `cron.schedule` do lembrete versionado numa migration.
+
+---
+
+## 10. Multi-tenant: uma barbearia nunca vê a outra
+
+Decisão do dono (2026-10-29): cada barbearia assinante tem seu espaço isolado. Modelo adotado: **um único banco**, com `barbershop_id` em todas as tabelas e isolamento garantido pelo **RLS**. É o modelo padrão de SaaS: um projeto só para manter, migrations aplicadas uma vez e custo que não se multiplica por cliente.
+
+### Tabelas novas
+```
+barbershops          (id, name, slug UNIQUE, status: active|suspended, created_at)
+barbershop_members   (barbershop_id, user_id, role: admin|barber|customer, UNIQUE(barbershop_id, user_id))
+platform_admins      (user_id)   -- você, dono da plataforma; cria e suspende barbearias
+```
+- `barbershop_members` substitui `user_roles`: o papel passa a ser **por barbearia**. `user_roles` fica até a Fase 4.
+- Todas as tabelas de negócio ganham `barbershop_id uuid NOT NULL REFERENCES barbershops`, com índice. Tabelas filhas (`order_items`, `order_products`, `subscription_usages`…) também carregam a coluna, com FK composta `(barbershop_id, order_id)` para impedir referência cruzada.
+- As tabelas de configuração (`barbershop_settings`, `birthday_settings`, `satisfaction_settings`, `subscription_reminder_settings`) passam a ter **uma linha por barbearia** (`UNIQUE(barbershop_id)`).
+- `profiles` continua global (é a pessoa); o vínculo com a barbearia é o `barbershop_members`.
+
+### Funções de apoio (SECURITY DEFINER, STABLE)
+```sql
+is_member(p_shop uuid) → boolean
+has_shop_role(p_shop uuid, p_role app_role) → boolean
+current_barber_id(p_shop uuid) → uuid   -- barbers.id do usuário naquela barbearia
+```
+
+### Padrão de política
+```sql
+-- staff lê, só admin escreve (ex.: services)
+create policy "member select services" on services for select
+  using (is_member(barbershop_id));
+create policy "admin all services" on services for all
+  using (has_shop_role(barbershop_id, 'admin'))
+  with check (has_shop_role(barbershop_id, 'admin'));
+
+-- barbeiro só altera os próprios atendimentos
+create policy "barber update own orders" on orders for update
+  using (has_shop_role(barbershop_id, 'barber') and barber_id = current_barber_id(barbershop_id))
+  with check (has_shop_role(barbershop_id, 'barber') and barber_id = current_barber_id(barbershop_id));
+```
+Toda RPC `SECURITY DEFINER` recebe ou deduz o `barbershop_id` e verifica `has_shop_role` **antes** de qualquer leitura ou escrita.
+
+### Papéis dentro de uma barbearia
+| Papel | Pode |
+|---|---|
+| admin (dono) | tudo na própria barbearia |
+| barber | ver a agenda e os clientes; mudar o status dos próprios atendimentos; ver as próprias metas e o extrato. Nada de catálogo, preços ou configurações |
+| customer | agendar, cancelar os próprios agendamentos, ver produtos, promoções e a própria assinatura, responder pesquisa |
+
+### Storage
+Caminho dos arquivos: `<barbershop_id>/<pasta>/<arquivo>`. As políticas checam `(storage.foldername(name))[1]::uuid` com `is_member` / `has_shop_role`.
+
+### Front
+- `BarbershopProvider` mantém a barbearia atual (vinda da URL `/b/<slug>` para clientes e do vínculo para a equipe; seletor se o usuário pertencer a mais de uma).
+- A camada `api/` sempre envia `barbershop_id` nos inserts e filtra por ele nas leituras. O RLS garante o isolamento mesmo que o front erre.
+- Cadastro de cliente pelo link da barbearia: cria o usuário e o `barbershop_members(role='customer')` daquela barbearia.
+
+### Testes de isolamento (obrigatórios)
+- pgTAP que percorre `information_schema.tables` do schema `public` e falha se alguma tabela de negócio não tiver `barbershop_id`, RLS habilitado e políticas.
+- Cenário com duas barbearias: para cada papel da barbearia A, tentar SELECT/INSERT/UPDATE/DELETE em dados da B, e tudo deve falhar ou voltar vazio.

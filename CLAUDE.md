@@ -46,7 +46,7 @@ src/
   hooks/                     useAuth + hooks de assinaturas, metas, comissões
   integrations/supabase/     client.ts e types.ts (gerado)
 supabase/
-  migrations/                39 migrations (schema single-tenant: 1 projeto = 1 barbearia)
+  migrations/                39 migrations (hoje single-tenant; vira multi-tenant na Etapa 1.0)
   functions/                 create-barber-user, reset-barber-password, send-subscription-reminders
 ```
 
@@ -65,6 +65,8 @@ Features: auth, agenda, agendamento, disponibilidade, barbeiros, clientes, servi
 - **Busca de dados só com TanStack Query** (`useQuery`/`useMutation`). Proibido `useEffect` + `useState` para buscar dados.
 - **Regra crítica no banco**: preço, status de pedido, disponibilidade, comissão, metas e uso de assinatura são calculados ou validados em RPC `SECURITY DEFINER` e protegidos por RLS. A UI pode pré-visualizar com funções de `domain/`, mas nunca é a fonte da verdade. Modelo: `confirm_subscription_payment`.
 - **RLS é a segurança.** Esconder uma aba na UI não protege nada. Toda tabela nova tem RLS e políticas separadas por papel (`admin`, `barber`, `customer`).
+- **Multi-tenant**: cada barbearia é isolada (`docs/ARQUITETURA.md` §10). Toda tabela de negócio tem `barbershop_id NOT NULL` e toda política e RPC filtra por `is_member` / `has_shop_role`. Tabela nova sem isso é bug de segurança. Mudanças de RLS vêm com teste de isolamento entre duas barbearias.
+- **Barbeiro (não admin)**: vê a agenda e os clientes, muda o status dos próprios atendimentos e vê as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
 - **Tipos gerados**: usar `Tables<'x'>`, `TablesInsert<'x'>` e `Enums<'x'>` de `integrations/supabase/types.ts`. Não escrever interfaces que repetem colunas. Sem `any` (use `unknown` + narrowing).
 - Sempre `if (error) throw error` depois de chamadas ao Supabase; nada de erro engolido em silêncio.
 - Datas "de hoje" e de calendário no fuso `America/Sao_Paulo` (via `shared/lib/dates.ts`), nunca `toISOString().slice(0,10)`.

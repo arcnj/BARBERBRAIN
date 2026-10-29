@@ -11,15 +11,17 @@
 | Fase | Etapas | Objetivo |
 |---|---|---|
 | **0. Fundação** | 0.1 – 0.3 | Portão de qualidade (lint, testes, CI) e **controle do banco** |
-| **1. Segurança** | 1.1 – 1.8 | Fechar as brechas de RLS e mover a regra crítica para o banco |
+| **1. Multi-tenant + segurança** | 1.0 – 1.8 | Isolar as barbearias, fechar as brechas de RLS e mover a regra crítica para o banco |
 | **2. Base do front** | 2.1 – 2.3 | Utilitários compartilhados, roteamento e estrutura `features/` |
 | **3. Migração por feature** | 3.1 – 3.12 | Uma feature por etapa, da mais simples para a mais complexa |
 | **4. Acabamento** | 4.1 – 4.4 | TypeScript estrito, limpeza, performance e resquícios do Lovable |
 
-**Decisões que preciso de você antes de começar** (detalhes em DIAGNOSTICO §7):
-1. Backend: Supabase próprio ou Lovable Cloud? Define a Etapa 0.3.
-2. Single-tenant (1 projeto por barbearia) continua sendo o modelo? O plano assume **sim**.
-3. O que o barbeiro pode fazer (proposta na Etapa 1.3).
+**Decisões tomadas (2026-10-29)**
+- ✅ **Multi-tenant**: cada barbearia assinante tem seu espaço isolado num único banco (`barbershop_id` + RLS). Ver Etapa 1.0 e `ARQUITETURA.md` §10.
+- ✅ **Barbeiro (não admin)**: vê a agenda e os clientes, muda o status dos próprios atendimentos e vê as próprias metas e o extrato. Nada de catálogo, preços ou configurações.
+- ✅ **Banco**: Supabase numa conta **do dono** (Postgres gerenciado na nuvem + Auth + Storage + Edge Functions). Com multi-tenant, um único projeto atende todas as barbearias.
+
+**Ainda em aberto** (DIAGNOSTICO §7): existem dados reais a preservar? Barbeiro vê a agenda de todos ou só a dele? Um cliente pode estar em duas barbearias?
 
 ---
 
@@ -60,12 +62,25 @@
 
 ---
 
-## FASE 1: Segurança (prioridade máxima)
+## FASE 1: Multi-tenant e segurança (prioridade máxima)
 
 > Todas as etapas desta fase são **migrations aditivas ou de política** (sem DROP de tabela ou coluna).
 > Cada etapa vem com testes pgTAP em `supabase/tests/` provando o que passou a ser bloqueado.
 > Ordem pensada para **não quebrar a UI**: quando uma política fecha um caminho que o front usa,
 > a mesma etapa troca o front para o caminho novo.
+
+### Etapa 1.0 · Multi-tenant (isolamento entre barbearias, C-05)
+Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas com o filtro de barbearia. Fazer as políticas antes e o tenant depois significaria reescrevê-las duas vezes. Dividida em sub-etapas, cada uma com o app funcionando:
+
+- **1.0a · Estrutura** (aditiva): tabelas `barbershops`, `barbershop_members (barbershop_id, user_id, role)` e `platform_admins`; funções `is_member(shop)`, `has_shop_role(shop, role)` e `current_barber_id(shop)`. Criação da barbearia nº 1 para os dados atuais.
+- **1.0b · Colunas**: `barbershop_id` (nullable) em todas as tabelas de negócio e **preenchimento com a barbearia nº 1**. ⚠️ Isso é um UPDATE em massa e precisa da sua aprovação, embora não apague nada. Depois: `NOT NULL`, índices e FKs compostas (garantem que um item de pedido não aponte para um pedido de outra barbearia). As tabelas de configuração passam a ter uma linha por barbearia.
+- **1.0c · Membros**: copiar `user_roles` para `barbershop_members` da barbearia nº 1. `user_roles` **continua existindo** até a Fase 4 (removê-la exigirá aprovação).
+- **1.0d · Políticas**: reescrever o RLS de todas as tabelas com `is_member(barbershop_id)` + papel, já com as regras de barbeiro aprovadas (absorve a Etapa 1.3). Storage com caminho `<barbershop_id>/...`.
+- **1.0e · Front e edge functions**: contexto da barbearia atual (`BarbershopProvider`), cadastro de cliente pelo link da barbearia (`/b/<slug>`), `barbershop_id` em todos os inserts, edge functions validando "admin desta barbearia".
+- **1.0f · Criar barbearia nova**: inicialmente pelo administrador da plataforma (você), com uma edge function que cria a barbearia, o dono e as configurações padrão. Cadastro self-service com cobrança é uma **funcionalidade nova**, fora deste plano até você pedir.
+
+**Riscos**: é a maior mudança do plano. Uma tabela esquecida sem `barbershop_id` vaza dados. Mitigação: **teste pgTAP automático que percorre todas as tabelas de `public`** e falha se alguma não tiver `barbershop_id` + RLS, mais testes com dois tenants (usuário da barbearia A não lê, não grava e não apaga nada da B).
+**Validar**: duas barbearias de teste com dados; logins de admin, barbeiro e cliente de cada uma; nenhuma tela mostra dado da outra; a barbearia nº 1 continua funcionando exatamente como antes.
 
 ### Etapa 1.1 · Brechas isoladas (sem impacto no fluxo)
 **O que muda** (migration `fix_rls_isolated`):
@@ -88,7 +103,9 @@
 **Validar**: pgTAP (cliente recebe erro ao pedir `barbers.email` e `products.cost_price`); telas do cliente iguais às de antes.
 
 ### Etapa 1.3 · Separar barbeiro de admin (C-01)
-**Proposta de permissões do barbeiro** (precisa da sua aprovação):
+> Implementada junto com a Etapa 1.0d. Mantida aqui como especificação.
+
+**Permissões do barbeiro** (✅ aprovadas em 2026-10-29; sempre dentro da própria barbearia):
 - **Lê**: catálogo (serviços, combos, produtos), agenda de todos (para a recepção), perfis de clientes, próprias metas e próprio extrato.
 - **Escreve**: pedidos e itens **em que é o barbeiro** (criar, mudar status), avatar próprio.
 - **Não escreve**: barbeiros, serviços, produtos, promoções, cupons, configurações e registros financeiros.
@@ -205,8 +222,10 @@ Cada etapa segue o mesmo roteiro:
 
 | Momento | O que |
 |---|---|
-| Antes da 0.3 | Caminho A ou B (backend) |
-| 1.3 | Permissões finais do barbeiro |
+| Antes da 0.3 | Caminho A ou B (backend) e se há dados reais a migrar |
+| 1.0b | Preencher `barbershop_id` dos dados existentes com a barbearia nº 1 (UPDATE em massa) |
+| 1.0d | Barbeiro vê a agenda de todos ou só a própria; cliente em mais de uma barbearia |
+| 1.3 | ~~Permissões finais do barbeiro~~ ✅ aprovado |
 | 1.4 | Tratamento de registros financeiros duplicados já existentes (se houver) |
 | 1.6 | "Excluir barbeiro" passa a ser "Desativar" |
 | 1.8 | Exigir MFA no banco |
