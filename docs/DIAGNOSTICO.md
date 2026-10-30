@@ -25,6 +25,18 @@ Qualquer pessoa com o app aberto e o console do navegador consegue contornar as 
 
 ---
 
+## 0.1 Confirmação em banco (2026-10-30)
+
+As migrations foram aplicadas do zero num Postgres 16 local (com simulação mínima de `auth` e `storage`), mais o `seed.sql`. Os testes abaixo, executados como usuário autenticado com RLS ativo, **confirmaram** os achados:
+
+| Achado | Teste | Resultado |
+|---|---|---|
+| C-04 | cliente conta os pedidos de hoje (há 2 no banco) | vê **1** (só o dele), então a agenda parece livre |
+| C-02 | cliente faz `update orders set status='completed', total_price=0` no próprio pedido | **aceito** |
+| C-03 | barbeiro insere comissão de R$ 9.999 para si | **aceito** |
+| C-01 | barbeiro faz `update services set price=1` | **aceito** |
+| A-07 | `insert ... on conflict (cycle_id, order_id, service_id)` em `subscription_usages` | **erro** `no unique or exclusion constraint matching the ON CONFLICT` (o uso de assinatura nunca é gravado) |
+
 ## 1. Mapa do aplicativo
 
 ### 1.1 Rotas (`src/App.tsx:23-31`)
@@ -262,7 +274,7 @@ Ver A-06 e A-09.
 - Senhas geradas com `Math.random` (`BarbersTab.tsx:356-363`).
 - **Correção**: validar com zod, usar `has_role`, conferir se o alvo é barbeiro, falhar de forma atômica (desfazer a criação do usuário se o papel falhar) e gerar senha com `crypto.getRandomValues`.
 
-#### A-07 · Uso de assinatura provavelmente nunca é registrado *(confirmar no banco)*
+#### A-07 · Uso de assinatura nunca é registrado *(confirmado, ver §0.1)*
 - **Evidência**: `useSubscriptionUsage.ts:102-107` faz `upsert(..., { onConflict: "cycle_id,order_id,service_id" })`, mas o único índice compatível é **parcial** (`mig 20260909021139:59-61`, `WHERE order_id IS NOT NULL AND service_id IS NOT NULL`). O Postgres não infere índice parcial em `ON CONFLICT (cols)` sem o predicado, e responde erro 42P10. O erro é engolido em `AgendaTab.tsx:321-330` ("assinatura é complementar").
 - **Impacto**: o limite de visitas do plano não é aplicado e o relatório de uso fica vazio.
 - **Validação**: `select count(*) from subscription_usages;` em produção. Se for 0 com assinantes ativos, está confirmado.

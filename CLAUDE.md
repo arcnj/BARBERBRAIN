@@ -7,6 +7,7 @@ Documentos de referência (leia antes de mudar algo):
 - `docs/DIAGNOSTICO.md`: problemas conhecidos por severidade (IDs C-xx, A-xx, M-xx, B-xx)
 - `docs/ARQUITETURA.md`: estrutura alvo e padrões
 - `docs/PLANO.md`: etapas da reconstrução (seguir a ordem)
+- `docs/SETUP.md`: configuração do Supabase próprio, segredos do GitHub e Vercel
 
 ## Stack (não trocar)
 
@@ -23,7 +24,9 @@ npm run typecheck      # tsc --noEmit
 npm test               # Vitest (testes em src/**/*.test.ts ao lado do código)
 npm run test:watch     # Vitest em modo watch
 
-# Supabase (a partir da etapa 0.3)
+# Supabase (CLI 2.122 via npx; precisa de Docker)
+npm run db:start                       # Supabase local com migrations + seed (logins em supabase/seed.sql)
+npm run db:types                       # regenera src/integrations/supabase/types.ts do banco local
 supabase start                         # banco local
 supabase migration new <descricao>     # nova migration
 supabase db reset                      # recria o banco local com migrations + seed
@@ -86,6 +89,7 @@ Features: auth, agenda, agendamento, disponibilidade, barbeiros, clientes, servi
 5. **Escrever testes para a regra de negócio crítica**: agendamento (preço, cupom, combo), disponibilidade de horários e assinaturas (cobertura, ciclos, uso). Mudanças de RLS e RPC vêm com teste pgTAP.
 6. Ao terminar uma etapa: resumir o que mudou, os riscos e como foi validado, e **esperar aprovação** antes da próxima.
 7. Não commitar `.env`, chaves ou dumps de dados.
+8. Deploy: o front é publicado pela Vercel (link fixo do `main` em https://barberbrain.vercel.app e um link de prévia por PR). O banco é atualizado pelo workflow `supabase-deploy.yml` quando `supabase/**` muda no `main`. Nunca aplicar migration direto em produção por fora do workflow.
 
 ## Armadilhas conhecidas
 

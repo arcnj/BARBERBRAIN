@@ -35,7 +35,7 @@
 
 ## FASE 0: Fundação
 
-### Etapa 0.1 · Portão de qualidade
+### Etapa 0.1 · Portão de qualidade ✅ (branch `etapa-0-1-portao-qualidade`)
 **O que muda**
 - Corrigir os 26 erros de lint (mecânicos: `any` → tipo correto ou `unknown`, `let` → `const`, interfaces vazias → `type`, `require` → `import` no tailwind). Os 15 avisos ficam para as etapas das features.
 - Instalar Vitest + Testing Library + jsdom; scripts `test`, `test:watch` e `typecheck` (`tsc --noEmit`).
@@ -46,7 +46,7 @@
 **Riscos**: o `audit fix` pode subir versões menores de `react-router`, `jspdf` e `dompurify`. Mitigação: testar manualmente a exportação de PDF e Excel de Clientes e a navegação.
 **Validar**: lint com 0 erros; CI verde; exportar PDF e Excel em Clientes; fluxo de login e agendamento manual.
 
-### Etapa 0.2 · Higiene de configuração
+### Etapa 0.2 · Higiene de configuração ✅ (branch `etapa-0-2-configuracao`)
 **O que muda**
 - `.env` no `.gitignore` e criação de `.env.example` com as 3 variáveis (sem valores reais). Tirar o `.env` do controle de versão com `git rm --cached` (o arquivo local continua existindo).
 - Documentar onde configurar as variáveis no host do front.
@@ -56,7 +56,8 @@
 **Riscos**: quem clonar o repo precisa criar o `.env` a partir do exemplo (documentado no CLAUDE.md). A chave publishable continua no histórico do git, o que é aceitável porque ela é pública por natureza. Se ainda assim quiser, dá para rotacioná-la no painel.
 **Validar**: `git status` não mostra `.env`; build local com `.env` criado do exemplo.
 
-### Etapa 0.3 · Controle do banco (bloqueia a Fase 1)
+### Etapa 0.3 · Controle do banco (bloqueia a Fase 1) ✅ código pronto (branch `etapa-0-3-supabase-proprio`); falta a configuração do dono em `docs/SETUP.md`
+Caminho escolhido: **Supabase próprio, começando do zero** (sem dados reais). Entregue: `config.toml` completo, `seed.sql`, job de CI que sobe o Supabase local e aplica migrations + seed, workflow `supabase-deploy.yml` (db push + functions deploy no `main`, com segredos do GitHub) e o guia `docs/SETUP.md`. As 39 migrations foram validadas do zero num Postgres 16 com simulação do Supabase.
 **Caminho A: Supabase próprio**
 - `supabase init`/`link`, `supabase migration list`, `supabase db diff --linked` para capturar o que está em produção e não está no repo (cron, ajustes manuais). Isso vira uma migration de "baseline".
 - `supabase/seed.sql` com dados fictícios; `supabase start` funcionando localmente.
