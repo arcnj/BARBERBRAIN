@@ -32,3 +32,25 @@ jobs:
           VITE_SUPABASE_URL: http://localhost:54321
           VITE_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
           VITE_SUPABASE_PROJECT_ID: ci-placeholder
+
+  banco:
+    name: Migrations e seed num Supabase local
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+
+      # Sobe só o necessário (Postgres, Auth, REST, Storage) e aplica todas as migrations + seed.sql
+      - run: supabase start -x studio,imgproxy,vector,logflare,supavisor,realtime,mailpit,edge-runtime,postgres-meta
+
+      - name: Conferir dados do seed
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -Atc \
+            "select case when count(*) = 5 then 'ok' else 1/0 end from public.profiles"
+
+      - run: supabase stop --no-backup
+        if: always()

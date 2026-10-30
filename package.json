@@ -12,6 +12,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "db:start": "npx -y supabase@2.122.0 start",
+    "db:stop": "npx -y supabase@2.122.0 stop",
+    "db:reset": "npx -y supabase@2.122.0 db reset",
+    "db:types": "npx -y supabase@2.122.0 gen types typescript --local > src/integrations/supabase/types.ts",
     "preview": "vite preview"
   },
   "dependencies": {
