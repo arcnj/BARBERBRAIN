@@ -2012,6 +2012,7 @@ export type Database = {
         Row: {
           active: boolean | null;
           avatar_url: string | null;
+          barbershop_id: string;
           id: string;
           name: string;
         };
@@ -2019,16 +2020,26 @@ export type Database = {
         Insert: {
           active?: boolean | null;
           avatar_url?: string | null;
+          barbershop_id?: string | null;
           id?: string | null;
           name?: string | null;
         };
         Update: {
           active?: boolean | null;
           avatar_url?: string | null;
+          barbershop_id?: string | null;
           id?: string | null;
           name?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "barbers_barbershop_id_fkey";
+            columns: ["barbershop_id"];
+            isOneToOne: false;
+            referencedRelation: "barbershops";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       barbershop_settings_public: {
         Row: {

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
+import { BarbershopSwitcher, NoBarbershopNotice, useCustomerBarbershop } from "@/features/agendamento";
 
 interface Order {
   id: string;
@@ -203,13 +204,18 @@ export default function CustomerDashboard() {
   const [customerName, setCustomerName] = useState<string>("");
   const [birthdayCoupon, setBirthdayCoupon] = useState<BirthdayCoupon | null>(null);
   const [barbershopWhatsapp, setBarbershopWhatsapp] = useState<string>("");
+  // Barbearia em que o cliente está agendando: tudo nesta tela é filtrado por ela
+  const { barbershop, barbershops, isLoading: loadingBarbershop, selectBarbershop } = useCustomerBarbershop();
+  const shopId = barbershop?.id;
 
   const fetchBarbershopSettings = async () => {
+    if (!shopId) return;
     try {
       const { data } = await supabase
         .from("barbershop_settings")
         .select("whatsapp_phone")
-        .single();
+        .eq("barbershop_id", shopId)
+        .maybeSingle();
       
       if (data?.whatsapp_phone) {
         setBarbershopWhatsapp(data.whatsapp_phone);
@@ -229,7 +235,7 @@ export default function CustomerDashboard() {
   }, [user, role, loading, navigate]);
 
   const fetchOrders = async () => {
-    if (!user) return;
+    if (!user || !shopId) return;
 
     try {
       const { data, error } = await supabase
@@ -249,6 +255,7 @@ export default function CustomerDashboard() {
           )
         `)
         .eq("customer_id", user.id)
+        .eq("barbershop_id", shopId)
         .order("scheduled_at", { ascending: false });
 
       if (error) throw error;
@@ -262,10 +269,12 @@ export default function CustomerDashboard() {
   };
 
   const fetchPromotions = async () => {
+    if (!shopId) return;
     try {
       const { data, error } = await supabase
         .from("promotions")
         .select("id, title, description, discount_percentage, discount_value, end_date, image_url")
+        .eq("barbershop_id", shopId)
         .eq("active", true);
 
       if (error) throw error;
@@ -276,11 +285,13 @@ export default function CustomerDashboard() {
   };
 
   const fetchProducts = async () => {
+    if (!shopId) return;
     try {
       // Fetch products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select("id, name, description, price, image_url, category")
+        .eq("barbershop_id", shopId)
         .eq("active", true)
         .order("name");
 
@@ -289,7 +300,8 @@ export default function CustomerDashboard() {
       // Fetch sales count from order_products
       const { data: salesData, error: salesError } = await supabase
         .from("order_products")
-        .select("product_id, quantity");
+        .select("product_id, quantity")
+        .eq("barbershop_id", shopId);
 
       if (salesError) {
         console.error("Error fetching sales:", salesError);
@@ -357,7 +369,7 @@ export default function CustomerDashboard() {
   };
 
   const fetchBirthdayCoupon = async () => {
-    if (!user) return;
+    if (!user || !shopId) return;
     try {
       // First get the profile id
       const { data: profile, error: profileError } = await supabase
@@ -374,6 +386,7 @@ export default function CustomerDashboard() {
         .from("birthday_coupons")
         .select("id, discount_percentage, discount_value, valid_from, valid_until, used")
         .eq("profile_id", profile.id)
+        .eq("barbershop_id", shopId)
         .eq("used", false)
         .lte("valid_from", today)
         .gte("valid_until", today)
@@ -387,7 +400,7 @@ export default function CustomerDashboard() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && shopId) {
       fetchOrders();
       fetchPromotions();
       fetchProducts();
@@ -395,7 +408,9 @@ export default function CustomerDashboard() {
       fetchBirthdayCoupon();
       fetchBarbershopSettings();
     }
-  }, [user]);
+    // As funções acima são recriadas a cada render; recarrega quando muda o usuário ou a barbearia
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, shopId]);
 
   const handleLogout = async () => {
     await signOut();
@@ -485,13 +500,20 @@ export default function CustomerDashboard() {
         {/* Header */}
         <header className="sticky top-0 z-50 glass border-b border-border/50">
           <div className="container flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-primary/10">
-                <Scissors className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <Scissors className="h-5 w-5 text-primary" />
+                </div>
+                <span className="font-heading text-xl font-bold text-foreground">
+                  Barber<span className="text-primary">Brain</span>
+                </span>
               </div>
-              <span className="font-heading text-xl font-bold text-foreground">
-                Barber<span className="text-primary">Brain</span>
-              </span>
+              <BarbershopSwitcher
+                barbershops={barbershops}
+                currentSlug={barbershop?.slug}
+                onSelect={selectBarbershop}
+              />
             </div>
 
             <Button variant="ghost" size="icon" onClick={handleLogout}>
@@ -507,9 +529,13 @@ export default function CustomerDashboard() {
               Olá{customerName ? `, ${customerName}` : ""}! 👋
             </h1>
             <p className="text-muted-foreground">
-              Agende seu horário e acompanhe seus pedidos
+              {barbershop
+                ? `Agende seu horário na ${barbershop.name} e acompanhe seus pedidos`
+                : "Agende seu horário e acompanhe seus pedidos"}
             </p>
           </div>
+
+          {!loadingBarbershop && !barbershop && <NoBarbershopNotice />}
 
           {/* Birthday Coupon Banner */}
           {birthdayCoupon && (
@@ -554,7 +580,7 @@ export default function CustomerDashboard() {
           )}
 
           {/* Subscription Card */}
-          <MySubscriptionCard userId={user?.id} onOpen={() => setActiveTab("assinatura")} />
+          <MySubscriptionCard userId={user?.id} barbershopId={shopId} onOpen={() => setActiveTab("assinatura")} />
 
 
 
@@ -718,6 +744,7 @@ export default function CustomerDashboard() {
             <TabsContent value="assinatura">
               <MySubscriptionTab
                 userId={user?.id}
+                barbershopId={shopId}
                 barbershopWhatsapp={barbershopWhatsapp}
                 customerName={customerName}
               />
@@ -725,7 +752,9 @@ export default function CustomerDashboard() {
 
             {/* Scheduling Tab */}
             <TabsContent value="agendar">
-              <AppointmentScheduler 
+              <AppointmentScheduler
+                key={shopId}
+                barbershopId={shopId}
                 selectedProducts={selectedProducts}
                 birthdayCoupon={birthdayCoupon}
                 onAppointmentCreated={() => {
@@ -968,7 +997,7 @@ export default function CustomerDashboard() {
         </main>
         
         {/* Satisfaction Popup */}
-        {user && <SatisfactionPopup userId={user.id} />}
+        {user && shopId && <SatisfactionPopup userId={user.id} barbershopId={shopId} />}
       </div>
     </>
   );

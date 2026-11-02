@@ -38,17 +38,20 @@ export interface CoverageLine extends ServiceInput {
  * Cobertura da assinatura do cliente: quais serviços estão inclusos no plano
  * e quanto já foi usado no ciclo vigente.
  */
-export function useSubscriptionCoverage(userId: string | undefined) {
+export function useSubscriptionCoverage(userId: string | undefined, barbershopId?: string) {
   return useQuery({
-    queryKey: ["subscription-coverage", userId],
+    queryKey: ["subscription-coverage", userId, barbershopId ?? null],
     enabled: !!userId,
     staleTime: 30_000,
     queryFn: async (): Promise<SubscriptionCoverage | null> => {
-      const { data: sub } = await supabase
+      let subQuery = supabase
         .from("customer_subscriptions")
         .select("id, plan_id, plan:subscription_plans(name, monthly_visit_limit)")
         .eq("customer_id", userId!)
-        .eq("status", "active")
+        .eq("status", "active");
+      // na área do cliente, só a assinatura da barbearia atual
+      if (barbershopId) subQuery = subQuery.eq("barbershop_id", barbershopId);
+      const { data: sub } = await subQuery
         .order("current_period_end", { ascending: false })
         .limit(1)
         .maybeSingle();

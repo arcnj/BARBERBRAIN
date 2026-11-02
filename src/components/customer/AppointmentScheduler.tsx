@@ -80,6 +80,8 @@ interface BirthdayCoupon {
 }
 
 interface AppointmentSchedulerProps {
+  /** barbearia atual do cliente: serviços, barbeiros, combos e horários são dela */
+  barbershopId: string | undefined;
   selectedProducts?: SelectedProduct[];
   birthdayCoupon?: BirthdayCoupon | null;
   onAppointmentCreated: () => void;
@@ -90,11 +92,16 @@ const OPENING_HOUR = 9;
 const CLOSING_HOUR = 19;
 const SLOT_DURATION_MINUTES = 30;
 
-export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, onAppointmentCreated }: AppointmentSchedulerProps) {
+export function AppointmentScheduler({
+  barbershopId,
+  selectedProducts = [],
+  birthdayCoupon,
+  onAppointmentCreated,
+}: AppointmentSchedulerProps) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { data: quota, refetch: refetchQuota } = useSubscriptionQuota(user?.id);
-  const { data: coverage } = useSubscriptionCoverage(user?.id);
+  const { data: quota, refetch: refetchQuota } = useSubscriptionQuota(user?.id, barbershopId);
+  const { data: coverage } = useSubscriptionCoverage(user?.id, barbershopId);
 
   const [services, setServices] = useState<Service[]>([]);
   const [combos, setCombos] = useState<ServiceCombo[]>([]);
@@ -120,16 +127,20 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
   } | null>(null);
 
   useEffect(() => {
+    if (!barbershopId) return;
     fetchData();
     fetchBarbershopSettings();
-  }, []);
+    // recarrega ao trocar de barbearia; as funções são recriadas a cada render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barbershopId]);
 
   const fetchBarbershopSettings = async () => {
     try {
       const { data } = await supabase
         .from("barbershop_settings")
         .select("whatsapp_phone")
-        .single();
+        .eq("barbershop_id", barbershopId!)
+        .maybeSingle();
       
       if (data?.whatsapp_phone) {
         setBarbershopWhatsapp(data.whatsapp_phone);
@@ -155,9 +166,13 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
     setLoading(true);
     try {
       const [servicesRes, barbersRes, combosRes] = await Promise.all([
-        supabase.from("services").select("*").eq("active", true).order("category"),
-        supabase.from("barbers_public").select("id, name, avatar_url").eq("active", true),
-        supabase.from("service_combos").select("*").eq("active", true),
+        supabase.from("services").select("*").eq("barbershop_id", barbershopId!).eq("active", true).order("category"),
+        supabase
+          .from("barbers_public")
+          .select("id, name, avatar_url")
+          .eq("barbershop_id", barbershopId!)
+          .eq("active", true),
+        supabase.from("service_combos").select("*").eq("barbershop_id", barbershopId!).eq("active", true),
       ]);
 
       if (servicesRes.error) throw servicesRes.error;
@@ -225,6 +240,7 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
             )
           )
         `)
+        .eq("barbershop_id", barbershopId!)
         .gte("scheduled_at", startOfSelectedDay.toISOString())
         .lt("scheduled_at", endOfSelectedDay.toISOString())
         .in("status", ["pending", "confirmed", "in_progress"]);
@@ -356,7 +372,7 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    if (!user || !barbershopId) return;
 
     if (selectedServices.length === 0) {
       toast({
@@ -410,6 +426,7 @@ export function AppointmentScheduler({ selectedProducts = [], birthdayCoupon, on
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
+          barbershop_id: barbershopId,
           customer_id: user.id,
           barber_id: preferredBarber || null,
           preferred_barber_id: preferredBarber || null,
