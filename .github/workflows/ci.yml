@@ -49,8 +49,9 @@ jobs:
 
       - name: Conferir dados do seed
         run: |
-          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -Atc \
-            "select case when count(*) = 5 then 'ok' else 1/0 end from public.profiles"
+          n=$(psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -Atc "select count(*) from public.profiles")
+          echo "profiles criados pelo seed: $n"
+          test "$n" = "5"
 
       - run: supabase stop --no-backup
         if: always()
