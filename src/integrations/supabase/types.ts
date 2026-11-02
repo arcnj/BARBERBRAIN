@@ -2012,6 +2012,7 @@ export type Database = {
         Row: {
           active: boolean | null;
           avatar_url: string | null;
+          barbershop_id: string;
           id: string;
           name: string;
         };
@@ -2019,12 +2020,14 @@ export type Database = {
         Insert: {
           active?: boolean | null;
           avatar_url?: string | null;
+          barbershop_id?: string | null;
           id?: string | null;
           name?: string | null;
         };
         Update: {
           active?: boolean | null;
           avatar_url?: string | null;
+          barbershop_id?: string | null;
           id?: string | null;
           name?: string | null;
         };
