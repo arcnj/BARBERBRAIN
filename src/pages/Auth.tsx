@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { translateAuthError } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -99,12 +100,8 @@ export default function Auth() {
       const { error } = await signIn(loginEmail, loginPassword);
 
       if (error) {
-        let message = "Erro ao fazer login";
-        if (error.message.includes("Invalid login credentials")) {
-          message = "Email ou senha incorretos";
-        } else if (error.message.includes("Email not confirmed")) {
-          message = "Confirme seu email antes de fazer login";
-        }
+        console.error("Login error:", error);
+        const message = translateAuthError(error, "Erro ao fazer login");
         toast({
           title: "Erro",
           description: message,
@@ -167,10 +164,8 @@ export default function Auth() {
       });
 
       if (error) {
-        let message = "Erro ao criar conta";
-        if (error.message.includes("already registered")) {
-          message = "Este email já está cadastrado";
-        }
+        console.error("Signup error:", error);
+        const message = translateAuthError(error, "Erro ao criar conta");
         toast({
           title: "Erro",
           description: message,
