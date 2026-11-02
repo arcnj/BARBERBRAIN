@@ -14,7 +14,7 @@ import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { z } from "zod";
 import { MFAVerify } from "@/components/auth/MFAVerify";
-import { useBarbershopPublic, useJoinBarbershop } from "@/features/agendamento";
+import { BarbershopHeader, useBarbershopPublic, useJoinBarbershop } from "@/features/agendamento";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -35,12 +35,18 @@ const signupSchema = z.object({
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { user, role, loading, signIn, signUp, needsMFAVerification, refreshMFAStatus } = useAuth();
+  const { user, role, loading, signIn, signUp, signOut, needsMFAVerification, refreshMFAStatus } = useAuth();
   const { toast } = useToast();
   // Vindo do link de uma barbearia (/b/<slug>): o cliente entra nessa barbearia
   const [searchParams] = useSearchParams();
   const barbershopSlug = searchParams.get("b") ?? undefined;
   const { data: linkShop } = useBarbershopPublic(barbershopSlug);
+  const isStaff = role === "barber" || role === "admin";
+  // Alguém da equipe (ex.: o dono testando o próprio link) abriu o link da barbearia:
+  // mostramos o formulário de cliente e saímos da conta da equipe antes de entrar/criar.
+  // Se a pessoa entrar com uma conta da equipe pelo próprio formulário, vai para o painel.
+  const [submittedOnLink, setSubmittedOnLink] = useState(false);
+  const staffOnLink = Boolean(barbershopSlug && user && isStaff && !submittedOnLink);
   const joinBarbershop = useJoinBarbershop();
   // Pelo link, a pessoa chega para criar conta (padrão) ou para entrar (?modo=entrar)
   const [tab, setTab] = useState(barbershopSlug && searchParams.get("modo") !== "entrar" ? "signup" : "login");
@@ -65,6 +71,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (!loading && user && role) {
+      if (staffOnLink) return;
       // Check if MFA verification is needed
       if (needsMFAVerification) {
         setShowMFAVerify(true);
@@ -85,7 +92,7 @@ export default function Auth() {
     }
     // joinBarbershop.mutate é estável; incluir o objeto da mutation reexecutaria o efeito
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, role, loading, navigate, needsMFAVerification, barbershopSlug]);
+  }, [user, role, loading, navigate, needsMFAVerification, barbershopSlug, staffOnLink]);
 
   const handleMFAVerified = async () => {
     setShowMFAVerify(false);
@@ -113,6 +120,8 @@ export default function Auth() {
         return;
       }
 
+      if (staffOnLink) await signOut();
+      setSubmittedOnLink(true);
       const { error } = await signIn(loginEmail, loginPassword);
 
       if (error) {
@@ -132,6 +141,8 @@ export default function Auth() {
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
     try {
+      if (staffOnLink) await signOut();
+      setSubmittedOnLink(true);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -175,6 +186,8 @@ export default function Auth() {
         return;
       }
 
+      if (staffOnLink) await signOut();
+      setSubmittedOnLink(true);
       const { error, needsEmailConfirmation } = await signUp(signupData.email, signupData.password, {
         full_name: signupData.full_name,
         phone: signupData.phone || undefined,
@@ -204,7 +217,8 @@ export default function Auth() {
     }
   };
 
-  if (loading) {
+  // Já logado (cliente, ou equipe fora do link): o efeito acima redireciona.
+  if (loading || (user && !staffOnLink && !showMFAVerify)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -246,33 +260,48 @@ export default function Auth() {
   return (
     <>
       <Helmet>
-        <title>Login - BarberBrain</title>
+        <title>{linkShop ? `${linkShop.name} - Entrar ou criar conta` : "Login - BarberBrain"}</title>
         <meta name="description" content="Acesse sua conta BarberBrain para agendar seus cortes e acompanhar seus pedidos." />
       </Helmet>
 
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8">
-          {/* Back Button */}
-          <Link
-            to={barbershopSlug ? `/b/${encodeURIComponent(barbershopSlug)}` : "/"}
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>{linkShop ? `Voltar para a ${linkShop.name}` : "Voltar ao início"}</span>
-          </Link>
+          {linkShop ? (
+            // Pelo link da barbearia: a marca da barbearia em cima
+            <BarbershopHeader shop={linkShop} />
+          ) : (
+            <>
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Voltar ao início</span>
+              </Link>
 
-          {/* Logo */}
-          <div className="text-center">
-            <div className="inline-flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Scissors className="h-8 w-8 text-primary" />
+              <div className="text-center">
+                <div className="inline-flex items-center gap-2 mb-4">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Scissors className="h-8 w-8 text-primary" />
+                  </div>
+                  <span className="font-heading text-3xl font-bold text-foreground">
+                    Barber<span className="text-primary">Brain</span>
+                  </span>
+                </div>
+                <p className="text-muted-foreground">O cérebro da sua barbearia</p>
               </div>
-              <span className="font-heading text-3xl font-bold text-foreground">
-                Barber<span className="text-primary">Brain</span>
-              </span>
+            </>
+          )}
+
+          {staffOnLink && (
+            <div className="rounded-lg border border-border/50 bg-muted/40 p-3 text-center text-sm text-muted-foreground">
+              Você está conectado como equipe. Ao entrar ou criar uma conta de cliente aqui, você sai da conta da
+              equipe.{" "}
+              <Link to="/dashboard" className="font-medium text-primary hover:underline">
+                Voltar ao painel
+              </Link>
             </div>
-            <p className="text-muted-foreground">O cérebro da sua barbearia</p>
-          </div>
+          )}
 
           <Card className="glass border-border/50">
             <CardHeader className="text-center">
@@ -483,6 +512,12 @@ export default function Auth() {
               )}
             </CardContent>
           </Card>
+
+          {linkShop && (
+            <p className="text-center text-xs text-muted-foreground">
+              Agendamento online por <span className="font-semibold text-primary">BarberBrain</span>
+            </p>
+          )}
         </div>
       </div>
     </>
