@@ -2031,7 +2031,15 @@ export type Database = {
           id?: string | null;
           name?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "barbers_barbershop_id_fkey";
+            columns: ["barbershop_id"];
+            isOneToOne: false;
+            referencedRelation: "barbershops";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       barbershop_settings_public: {
         Row: {
