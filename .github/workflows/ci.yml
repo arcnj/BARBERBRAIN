@@ -44,6 +44,11 @@ jobs:
         with:
           version: 2.122.0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
       # Sobe só o necessário (Postgres, Auth, REST, Storage) e aplica todas as migrations + seed.sql
       - run: supabase start -x studio,imgproxy,vector,logflare,supavisor,realtime,mailpit,edge-runtime,postgres-meta
 
@@ -59,7 +64,10 @@ jobs:
       # Os tipos do front precisam refletir o banco. Se este passo falhar, baixe o artefato
       # "supabase-types" e substitua src/integrations/supabase/types.ts (ou rode npm run db:types).
       - name: Gerar tipos do banco
-        run: supabase gen types typescript --local > /tmp/types.ts
+        run: |
+          set -o pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          supabase gen types typescript --local | npx prettier --parser typescript > /tmp/types.ts
 
       - uses: actions/upload-artifact@v4
         with:
