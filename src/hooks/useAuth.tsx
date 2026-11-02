@@ -18,7 +18,12 @@ interface AuthContextType {
   loading: boolean;
   mfa: MFAInfo;
   needsMFAVerification: boolean;
-  signUp: (email: string, password: string, metadata: SignUpMetadata) => Promise<{ error: Error | null }>;
+  /** needsEmailConfirmation: conta criada, mas o login só acontece depois de confirmar o e-mail */
+  signUp: (
+    email: string,
+    password: string,
+    metadata: SignUpMetadata,
+  ) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshMFAStatus: () => Promise<void>;
@@ -148,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? `${window.location.origin}/auth?b=${encodeURIComponent(metadata.barbershop_slug)}`
       : `${window.location.origin}/auth`;
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -162,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
 
-    return { error: error as Error | null };
+    return { error: error as Error | null, needsEmailConfirmation: !error && !data.session };
   };
 
   const signIn = async (email: string, password: string) => {

@@ -42,6 +42,9 @@ export default function Auth() {
   const barbershopSlug = searchParams.get("b") ?? undefined;
   const { data: linkShop } = useBarbershopPublic(barbershopSlug);
   const joinBarbershop = useJoinBarbershop();
+  // Pelo link, a pessoa chega para criar conta (padrão) ou para entrar (?modo=entrar)
+  const [tab, setTab] = useState(barbershopSlug && searchParams.get("modo") !== "entrar" ? "signup" : "login");
+  const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMFAVerify, setShowMFAVerify] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -172,7 +175,7 @@ export default function Auth() {
         return;
       }
 
-      const { error } = await signUp(signupData.email, signupData.password, {
+      const { error, needsEmailConfirmation } = await signUp(signupData.email, signupData.password, {
         full_name: signupData.full_name,
         phone: signupData.phone || undefined,
         birth_date: signupData.birth_date || undefined,
@@ -187,10 +190,13 @@ export default function Auth() {
           description: message,
           variant: "destructive",
         });
+      } else if (needsEmailConfirmation) {
+        setConfirmationSentTo(signupData.email);
       } else {
+        // com sessão ativa, o efeito de redirecionamento leva o cliente para a barbearia
         toast({
           title: "Conta criada!",
-          description: "Bem-vindo ao BarberBrain!",
+          description: linkShop ? `Agora é só agendar na ${linkShop.name}.` : "Bem-vindo ao BarberBrain!",
         });
       }
     } finally {
@@ -247,12 +253,12 @@ export default function Auth() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8">
           {/* Back Button */}
-          <Link 
-            to="/" 
+          <Link
+            to={barbershopSlug ? `/b/${encodeURIComponent(barbershopSlug)}` : "/"}
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Voltar ao início</span>
+            <span>{linkShop ? `Voltar para a ${linkShop.name}` : "Voltar ao início"}</span>
           </Link>
 
           {/* Logo */}
@@ -266,22 +272,37 @@ export default function Auth() {
               </span>
             </div>
             <p className="text-muted-foreground">O cérebro da sua barbearia</p>
-            {linkShop && (
-              <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm text-foreground">
-                Você está entrando na <span className="font-semibold">{linkShop.name}</span>
-              </p>
-            )}
           </div>
 
           <Card className="glass border-border/50">
             <CardHeader className="text-center">
-              <CardTitle>Bem-vindo!</CardTitle>
+              <CardTitle>
+                {linkShop
+                  ? tab === "signup"
+                    ? `Criar conta na ${linkShop.name}`
+                    : `Entrar na ${linkShop.name}`
+                  : "Bem-vindo!"}
+              </CardTitle>
               <CardDescription>
-                Entre ou crie sua conta para continuar
+                {linkShop
+                  ? "Depois é só escolher o serviço, o barbeiro e o horário."
+                  : "Entre ou crie sua conta para continuar"}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="login" className="w-full">
+              {confirmationSentTo ? (
+                <div className="space-y-3 text-center">
+                  <p className="font-medium text-foreground">Confirme seu e-mail</p>
+                  <p className="text-sm text-muted-foreground">
+                    Enviamos um link para <span className="font-medium text-foreground">{confirmationSentTo}</span>.
+                    {linkShop
+                      ? ` Ao confirmar, você volta direto para a ${linkShop.name} para agendar.`
+                      : " Ao confirmar, você já entra na sua conta."}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Não chegou? Confira a caixa de spam.</p>
+                </div>
+              ) : (
+              <Tabs value={tab} onValueChange={setTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2 mb-6">
                   <TabsTrigger value="login">Entrar</TabsTrigger>
                   <TabsTrigger value="signup">Criar conta</TabsTrigger>
@@ -459,6 +480,7 @@ export default function Auth() {
                   </form>
                 </TabsContent>
               </Tabs>
+              )}
             </CardContent>
           </Card>
         </div>
