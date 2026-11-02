@@ -2223,6 +2223,7 @@ export type Database = {
         Args: Record<PropertyKey, never>;
         Returns: string;
       };
+      get_barbershop_public: { Args: { p_slug: string }; Returns: Json };
       get_user_role: {
         Args: { _user_id: string };
         Returns: Database["public"]["Enums"]["app_role"];
@@ -2243,6 +2244,7 @@ export type Database = {
       };
       is_member: { Args: { p_shop: string }; Returns: boolean };
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      join_barbershop: { Args: { p_slug: string }; Returns: string };
       reject_subscription_request: {
         Args: { p_request_id: string };
         Returns: undefined;

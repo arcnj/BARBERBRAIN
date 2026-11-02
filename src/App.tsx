@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerProducts from "./pages/CustomerProducts";
 import NotFound from "./pages/NotFound";
+import { BarbershopLinkPage } from "@/features/agendamento";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/cliente" element={<CustomerDashboard />} />
             <Route path="/cliente/produtos" element={<CustomerProducts />} />
+            <Route path="/b/:slug" element={<BarbershopLinkPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

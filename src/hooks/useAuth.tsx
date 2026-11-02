@@ -28,6 +28,8 @@ interface SignUpMetadata {
   full_name: string;
   phone?: string;
   birth_date?: string;
+  /** slug da barbearia do link (/b/<slug>): o cadastro já entra como cliente dela */
+  barbershop_slug?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -141,7 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [checkMFAStatus]);
 
   const signUp = async (email: string, password: string, metadata: SignUpMetadata) => {
-    const redirectUrl = `${window.location.origin}/`;
+    // depois de confirmar o e-mail, volta para /auth, que redireciona pelo papel
+    const redirectUrl = metadata.barbershop_slug
+      ? `${window.location.origin}/auth?b=${encodeURIComponent(metadata.barbershop_slug)}`
+      : `${window.location.origin}/auth`;
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -152,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           full_name: metadata.full_name,
           phone: metadata.phone,
           birth_date: metadata.birth_date,
+          barbershop_slug: metadata.barbershop_slug,
         },
       },
     });

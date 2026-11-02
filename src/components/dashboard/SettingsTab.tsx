@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MFASettings } from "@/components/auth/MFASettings";
 import { useAuth } from "@/hooks/useAuth";
+import { BarbershopLinkCard } from "@/features/configuracoes";
 
 interface DaySchedule {
   open: string;
@@ -296,6 +297,8 @@ export function SettingsTab() {
         <Settings className="h-6 w-6 text-primary" />
         <h2 className="text-2xl font-bold">Configurações</h2>
       </div>
+
+      <BarbershopLinkCard />
 
       <Card>
         <CardHeader>

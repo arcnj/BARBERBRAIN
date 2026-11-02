@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+import { BarbershopLinkCard } from "@/features/configuracoes";
 
 export function TodayTab() {
   const { user, role } = useAuth();
@@ -246,6 +247,9 @@ export function TodayTab() {
           <p className="text-sm text-primary mt-1">Mostrando apenas seus atendimentos</p>
         )}
       </div>
+
+      {/* Link de agendamento da barbearia (só o dono) */}
+      {isAdmin && <BarbershopLinkCard />}
       
       {/* Birthday Alert */}
       {isAdmin && todayBirthdays && todayBirthdays.length > 0 && (
