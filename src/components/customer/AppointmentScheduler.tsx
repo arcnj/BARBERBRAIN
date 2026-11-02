@@ -339,6 +339,14 @@ export function AppointmentScheduler({
       )
     : [];
 
+  // O que ainda falta escolher para liberar o botão de confirmar
+  const missingSteps = [
+    selectedServices.length === 0 && "escolha pelo menos um serviço",
+    !preferredBarber && "selecione um profissional",
+    !selectedDate && "escolha a data",
+    !selectedTime && "escolha o horário",
+  ].filter((step): step is string => Boolean(step));
+
   const calculateSubtotal = () => {
 
     // If combo is selected, use promotional price
@@ -854,9 +862,8 @@ export function AppointmentScheduler({
         </CardContent>
       </Card>
 
-      {/* Summary & Submit */}
-      {selectedServices.length > 0 && (
-        <Card className="glass border-primary/30 bg-primary/5">
+      {/* Summary & Submit: sempre visível; o botão só libera quando tudo foi escolhido */}
+      <Card className="glass border-primary/30 bg-primary/5">
           <CardContent className="py-4">
             {/* Birthday Coupon Applied */}
             {birthdayCoupon && calculateDiscount() > 0 && (
@@ -889,6 +896,7 @@ export function AppointmentScheduler({
               </div>
             )}
 
+            {selectedServices.length > 0 && (
             <div className="space-y-2 mb-4">
               {/* Subtotal */}
               <div className="flex items-center justify-between text-sm">
@@ -915,6 +923,7 @@ export function AppointmentScheduler({
                 </span>
               </div>
             </div>
+            )}
 
             {selectedDate && selectedTime && (
               <p className="text-sm text-muted-foreground mb-4 text-center">
@@ -937,16 +946,17 @@ export function AppointmentScheduler({
               </div>
             )}
 
+            {missingSteps.length > 0 && (
+              <p className="text-sm text-muted-foreground mb-4 text-center">
+                Para confirmar, {missingSteps.join(", ")}.
+              </p>
+            )}
+
             <Button
               className="w-full"
               size="lg"
               onClick={handleSubmit}
-              disabled={
-                submitting ||
-                selectedServices.length === 0 ||
-                !selectedDate ||
-                !selectedTime
-              }
+              disabled={submitting || missingSteps.length > 0}
             >
 
               {submitting ? (
@@ -958,7 +968,6 @@ export function AppointmentScheduler({
             </Button>
           </CardContent>
         </Card>
-      )}
       {/* Success Dialog with WhatsApp option */}
       <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <DialogContent className="sm:max-w-md">
