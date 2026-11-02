@@ -53,5 +53,21 @@ jobs:
           echo "profiles criados pelo seed: $n"
           test "$n" = "5"
 
+      - name: Testes do banco (pgTAP)
+        run: supabase test db
+
+      # Os tipos do front precisam refletir o banco. Se este passo falhar, baixe o artefato
+      # "supabase-types" e substitua src/integrations/supabase/types.ts (ou rode npm run db:types).
+      - name: Gerar tipos do banco
+        run: supabase gen types typescript --local > /tmp/types.ts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supabase-types
+          path: /tmp/types.ts
+
+      - name: Conferir tipos versionados
+        run: diff -u src/integrations/supabase/types.ts /tmp/types.ts
+
       - run: supabase stop --no-backup
         if: always()
