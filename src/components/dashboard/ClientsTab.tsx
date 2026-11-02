@@ -250,7 +250,7 @@ export function ClientsTab() {
     }
 
     // Summary
-    let yPos = filterByPeriod ? (selectedSegment !== "all" ? 50 : 44) : (selectedSegment !== "all" ? 44 : 38);
+    const yPos = filterByPeriod ? (selectedSegment !== "all" ? 50 : 44) : (selectedSegment !== "all" ? 44 : 38);
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text(`Total: ${recentClients.length} clientes`, 14, yPos);

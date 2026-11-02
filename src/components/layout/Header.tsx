@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProfileDialog } from "./ProfileDialog";
+import { getErrorMessage } from "@/lib/errors";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -148,8 +149,8 @@ export function Header({ onMenuClick, onNavigate }: HeaderProps) {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao alterar senha");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao alterar senha"));
     } finally {
       setChangingPassword(false);
     }

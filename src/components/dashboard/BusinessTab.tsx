@@ -183,7 +183,7 @@ export function BusinessTab() {
 
   // Calculate services ranking
   const servicesMap = new Map<string, { name: string; count: number; price: number }>();
-  orderItems?.forEach((item: any) => {
+  orderItems?.forEach((item) => {
     const serviceName = item.services?.name || "Serviço";
     const existing = servicesMap.get(serviceName);
     if (existing) {

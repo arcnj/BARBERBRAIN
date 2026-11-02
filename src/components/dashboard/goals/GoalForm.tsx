@@ -51,11 +51,11 @@ export function GoalForm({ barbers, onSuccess }: GoalFormProps) {
 
   // Group services by category
   const servicesByCategory = services?.reduce((acc, service) => {
-    const cats = (service as any).categories?.length > 0 ? (service as any).categories : [service.category || 'Outros'];
+    const cats = service.categories?.length > 0 ? service.categories : [service.category || 'Outros'];
     for (const cat of cats) {
       if (!acc[cat]) acc[cat] = [];
       // Avoid duplicates
-      if (!acc[cat].some((s: any) => s.id === service.id)) {
+      if (!acc[cat].some((s) => s.id === service.id)) {
         acc[cat].push(service);
       }
     }

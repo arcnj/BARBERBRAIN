@@ -149,7 +149,7 @@ export function useGoalProgress() {
           (sum, o) =>
             sum +
             (o.order_products?.reduce(
-              (s: number, p: any) => s + (p.quantity || 0),
+              (s, p) => s + (p.quantity || 0),
               0
             ) || 0),
           0

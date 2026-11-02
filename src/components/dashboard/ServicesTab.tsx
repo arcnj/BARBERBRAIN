@@ -268,7 +268,7 @@ export function ServicesTab() {
 
   const handleEdit = (service: Service) => {
     setEditingService(service);
-    const svcCategories = (service as any).categories?.length > 0 ? (service as any).categories : [service.category];
+    const svcCategories = service.categories?.length > 0 ? service.categories : [service.category];
     setFormData({
       name: service.name,
       description: service.description || "",

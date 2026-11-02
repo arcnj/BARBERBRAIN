@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Shield, KeyRound } from "lucide-react";
+import { getErrorMessage } from "@/lib/errors";
 
 interface MFAVerifyProps {
   onVerified: () => void;
@@ -80,11 +81,11 @@ export function MFAVerify({ onVerified, onCancel }: MFAVerifyProps) {
       }
 
       onVerified();
-    } catch (err: any) {
+    } catch (err) {
       console.error("MFA verify error:", err);
       toast({
         title: "Erro ao verificar",
-        description: err.message || "Não foi possível verificar o código",
+        description: getErrorMessage(err, "Não foi possível verificar o código"),
         variant: "destructive",
       });
     } finally {

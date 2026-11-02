@@ -106,7 +106,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       queryClient.invalidateQueries({ queryKey: ["user-profile"] });
       toast.success("Foto de perfil atualizada!");
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Upload error:", error);
       toast.error("Erro ao atualizar foto de perfil");
     },
