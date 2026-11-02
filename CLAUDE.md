@@ -50,7 +50,8 @@ src/
   hooks/                     useAuth + hooks de assinaturas, metas, comissões
   integrations/supabase/     client.ts e types.ts (gerado)
 supabase/
-  migrations/                39 migrations (hoje single-tenant; vira multi-tenant na Etapa 1.0)
+  migrations/                migrations (multi-tenant desde a 1.0a: barbershops + barbershop_id em todas as tabelas)
+  tests/database/            testes pgTAP (`supabase test db`)
   functions/                 create-barber-user, reset-barber-password, send-subscription-reminders
 ```
 
@@ -98,3 +99,5 @@ Features: auth, agenda, agendamento, disponibilidade, barbeiros, clientes, servi
 - `upsert` com `onConflict` não funciona com índice UNIQUE parcial.
 - Views com `security_invoker = on` **não** escondem colunas de quem já tem SELECT na tabela base.
 - Usuário de barbeiro nasce `customer` (trigger) e vira `barber` pela edge function `create-barber-user`.
+- **Transição multi-tenant (até a etapa 1.0d):** `barbershop_id` é preenchido por trigger a partir do registro pai ou de `current_barbershop_id()` (a única barbearia do usuário, ou a única existente). Código novo deve sempre enviar `barbershop_id` explicitamente. Mudanças em `user_roles` são espelhadas em `barbershop_members`; as políticas de acesso ainda usam `has_role` global.
+- `src/integrations/supabase/types.ts` precisa bater com o banco: o CI compara com o gerado. Se falhar, baixe o artefato `supabase-types` do job `banco` ou rode `npm run db:types`.

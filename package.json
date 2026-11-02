@@ -15,7 +15,7 @@
     "db:start": "npx -y supabase@2.122.0 start",
     "db:stop": "npx -y supabase@2.122.0 stop",
     "db:reset": "npx -y supabase@2.122.0 db reset",
-    "db:types": "npx -y supabase@2.122.0 gen types typescript --local > src/integrations/supabase/types.ts",
+    "db:types": "npx -y supabase@2.122.0 gen types typescript --local | prettier --parser typescript > src/integrations/supabase/types.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -95,6 +95,7 @@
     "jsdom": "^25.0.1",
     "lovable-tagger": "^1.1.13",
     "postcss": "^8.5.6",
+    "prettier": "^3.3.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
