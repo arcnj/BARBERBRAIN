@@ -87,8 +87,8 @@ select throws_like(
 
 -- funções internas não são chamáveis pela API
 select throws_like(
-  $$select public.register_order_commissions('f0000000-0000-0000-0000-000000000001')$$,
-  '%permission denied%', 'register_order_commissions não é exposta');
+  $$select private.register_order_commissions('f0000000-0000-0000-0000-000000000001')$$,
+  '%permission denied%', 'funções internas (schema private) não são acessíveis');
 reset role;
 
 select * from finish();

@@ -5,11 +5,17 @@
 --   2. as comissões do barbeiro (C-03: o valor vinha do navegador);
 --   3. o progresso das metas do mês e a premiação, sem duplicar (A-01).
 -- O front deixa de gravar essas tabelas. Datas no fuso de São Paulo.
+--
+-- As funções internas ficam no schema "private", que a API (PostgREST) não expõe:
+-- só o gatilho e a RPC pública recalculate_barber_goals as chamam.
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 1. Comissões
 -- ---------------------------------------------------------------------------
-create or replace function public.register_order_commissions(p_order_id uuid)
+create or replace function private.register_order_commissions(p_order_id uuid)
 returns void
 language plpgsql
 security definer
@@ -66,7 +72,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 2. Metas do mês (mesmas regras do front antigo) e premiação única
 -- ---------------------------------------------------------------------------
-create or replace function public.goal_progress_value(p_goal public.barber_goals)
+create or replace function private.goal_progress_value(p_goal public.barber_goals)
 returns numeric
 language sql
 stable
@@ -135,7 +141,7 @@ begin
     select * from public.barber_goals
     where barber_id = p_barber_id and month = p_month and year = p_year and status = 'active'
   loop
-    v_value := public.goal_progress_value(v_goal);
+    v_value := private.goal_progress_value(v_goal);
 
     update public.barber_goals
     set current_value = v_value,
@@ -163,7 +169,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 3. Uso da assinatura (mesma regra de cobertura de useSubscriptionCoverage)
 -- ---------------------------------------------------------------------------
-create or replace function public.record_subscription_usage(p_order_id uuid)
+create or replace function private.record_subscription_usage(p_order_id uuid)
 returns int
 language plpgsql
 security definer
@@ -256,7 +262,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Cada efeito roda isolado: uma falha num deles não impede a conclusão do atendimento
 -- nem os outros efeitos (fica registrada como WARNING no log do banco).
-create or replace function public.on_order_completed()
+create or replace function private.on_order_completed()
 returns trigger
 language plpgsql
 security definer
@@ -266,13 +272,13 @@ declare
   v_local timestamp := coalesce(new.scheduled_at, now()) at time zone 'America/Sao_Paulo';
 begin
   begin
-    perform public.record_subscription_usage(new.id);
+    perform private.record_subscription_usage(new.id);
   exception when others then
     raise warning 'record_subscription_usage(%) falhou: %', new.id, sqlerrm;
   end;
 
   begin
-    perform public.register_order_commissions(new.id);
+    perform private.register_order_commissions(new.id);
   exception when others then
     raise warning 'register_order_commissions(%) falhou: %', new.id, sqlerrm;
   end;
@@ -293,11 +299,9 @@ create trigger on_order_completed
   after update of status on public.orders
   for each row
   when (new.status = 'completed' and old.status is distinct from 'completed')
-  execute function public.on_order_completed();
+  execute function private.on_order_completed();
 
 -- Só o gatilho e a tela de metas usam estas funções
-revoke all on function public.register_order_commissions(uuid) from public, anon, authenticated;
-revoke all on function public.record_subscription_usage(uuid) from public, anon, authenticated;
-revoke all on function public.goal_progress_value(public.barber_goals) from public, anon, authenticated;
+revoke all on all functions in schema private from public, anon, authenticated;
 revoke all on function public.recalculate_barber_goals(uuid, int, int) from public, anon;
 grant execute on function public.recalculate_barber_goals(uuid, int, int) to authenticated, service_role;
