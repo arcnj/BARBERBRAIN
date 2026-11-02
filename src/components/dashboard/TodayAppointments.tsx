@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
-import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -92,114 +90,70 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
     cancelReason?: string;
   } | null>(null);
 
-  const { registerCommissions } = useCommissions();
-  const { updateBarberGoals } = useGoalProgress();
+  // Comissões, metas e uso da assinatura são registrados pelo banco ao concluir.
+  const { snapshotGoals, afterOrdersCompleted } = useGoalProgress();
   const { getSubscription } = useSubscriptionStatus();
-  const { recordUsage } = useSubscriptionUsage();
-
-  // Registra a utilização da assinatura (não bloqueia a finalização)
-  const registerSubscriptionUsage = async (order: Order) => {
-    try {
-      await recordUsage.mutateAsync({
-        orderId: order.id,
-        customerId: order.customer_id,
-        barberId: order.barber_id ?? null,
-        usedAt: order.scheduled_at || undefined,
-      });
-    } catch {
-      /* silencioso: assinatura é complementar ao atendimento */
-    }
-  };
 
   // Filter only active orders (not completed or cancelled)
   const activeOrders = orders.filter(o => 
     ["pending", "confirmed", "in_progress"].includes(o.status)
   );
 
-  // Helper function to calculate totals and register commissions
-  const registerOrderCommissions = async (order: Order) => {
-    if (!order.barber_id) return;
-    
-    const serviceTotal = order.order_items?.reduce((sum, item) => sum + (item.price || 0), 0) || 0;
-    const productTotal = order.order_products?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0) || 0;
-    
-    if (serviceTotal > 0 || productTotal > 0) {
-      await registerCommissions.mutateAsync({
-        orderId: order.id,
-        barberId: order.barber_id,
-        scheduledAt: order.scheduled_at,
-        serviceTotal,
-        productTotal,
-      });
-    }
-  };
-
   // Update order status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: OrderStatus }) => {
-      const { error } = await supabase
+      const order = orders.find((o) => o.id === orderId);
+      const before =
+        status === "completed" && order?.barber_id ? await snapshotGoals([order.barber_id]) : null;
+
+      const { data, error } = await supabase
         .from("orders")
         .update({ status })
-        .eq("id", orderId);
-
+        .eq("id", orderId)
+        .select("id");
       if (error) throw error;
-      
-      // Register commissions and update goals when completing an order
-      if (status === "completed") {
-        const order = orders.find(o => o.id === orderId);
-        if (order) {
-          await registerOrderCommissions(order);
-          await registerSubscriptionUsage(order);
-          // Update barber goals progress
-          const barberId = order.barber_id;
-          if (barberId) {
-            updateBarberGoals.mutate(barberId);
-          }
-        }
-      }
+      if (!data?.length) throw new Error("Sem permissão para alterar este atendimento.");
+
+      if (before) await afterOrdersCompleted(before);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
       toast.success("Status atualizado!");
     },
-    onError: () => {
-      toast.error("Erro ao atualizar status");
+    onError: (err) => {
+      toast.error(err instanceof Error && err.message ? err.message : "Erro ao atualizar o status. Tente novamente.");
     },
   });
 
   // Batch update mutation
   const batchUpdateMutation = useMutation({
     mutationFn: async ({ orderIds, status }: { orderIds: string[]; status: OrderStatus }) => {
-      const { error } = await supabase
+      const barberIds = orders
+        .filter((o) => orderIds.includes(o.id) && o.barber_id)
+        .map((o) => o.barber_id as string);
+      const before = status === "completed" ? await snapshotGoals(barberIds) : null;
+
+      const { data, error } = await supabase
         .from("orders")
         .update({ status })
-        .in("id", orderIds);
-
+        .in("id", orderIds)
+        .select("id");
       if (error) throw error;
-      
-      // Register commissions and update goals for all completed orders
-      if (status === "completed") {
-        const barberIds = new Set<string>();
-        for (const orderId of orderIds) {
-          const order = orders.find(o => o.id === orderId);
-          if (order) {
-            await registerOrderCommissions(order);
-            await registerSubscriptionUsage(order);
-            if (order.barber_id) barberIds.add(order.barber_id);
-          }
-        }
-        // Update goals for each unique barber
-        for (const barberId of barberIds) {
-          updateBarberGoals.mutate(barberId);
-        }
+      if ((data?.length ?? 0) < orderIds.length) {
+        throw new Error(
+          `${orderIds.length - (data?.length ?? 0)} atendimento(s) não puderam ser alterados por falta de permissão.`,
+        );
       }
+
+      if (before) await afterOrdersCompleted(before);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
       toast.success("Todos os atendimentos foram finalizados!");
     },
-    onError: () => {
-      toast.error("Erro ao finalizar atendimentos");
+    onError: (err) => {
+      queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
+      toast.error(err instanceof Error && err.message ? err.message : "Erro ao finalizar os atendimentos. Tente novamente.");
     },
   });
 
