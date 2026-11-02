@@ -1,7 +1,7 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { toast } from "sonner";
-import { CalendarCheck, Loader2, Scissors } from "lucide-react";
+import { CalendarCheck, Loader2, Scissors, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errors";
@@ -16,19 +16,29 @@ import { PublicBarberList } from "./PublicBarberList";
 export function BarbershopLinkPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
-  const { user, role, loading: authLoading } = useAuth();
-  const { data: shop, isLoading, isError } = useBarbershopPublic(slug);
+  const { user, role, loading: authLoading, signOut } = useAuth();
+  const { data: shop, isLoading, isError, refetch, isRefetching } = useBarbershopPublic(slug);
   const join = useJoinBarbershop();
 
   const isStaff = role === "admin" || role === "barber";
 
+  const goToAuth = (mode: "criar" | "entrar") => {
+    if (!shop) return;
+    rememberBarbershopSlug(shop.slug);
+    const params = new URLSearchParams({ b: shop.slug });
+    if (mode === "entrar") params.set("modo", "entrar");
+    navigate(`/auth?${params.toString()}`);
+  };
+
+  // Quem está logado como equipe (ex.: o dono testando o link) sai e cria a conta de cliente
+  const handleSwitchToCustomer = async () => {
+    await signOut();
+    goToAuth("criar");
+  };
+
   const handleBook = async () => {
     if (!shop) return;
     rememberBarbershopSlug(shop.slug);
-    if (!user) {
-      navigate(`/auth?b=${encodeURIComponent(shop.slug)}`);
-      return;
-    }
     try {
       await join.mutateAsync(shop.slug);
       navigate("/cliente");
@@ -45,7 +55,21 @@ export function BarbershopLinkPage() {
     );
   }
 
-  if (isError || !shop) {
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-4 text-center">
+        <Scissors className="h-10 w-10 text-primary" />
+        <h1 className="font-heading text-2xl font-bold">Não foi possível carregar a barbearia</h1>
+        <p className="text-muted-foreground">Verifique sua internet e tente de novo em instantes.</p>
+        <Button variant="outline" onClick={() => refetch()} disabled={isRefetching}>
+          {isRefetching && <Loader2 className="animate-spin" />}
+          Tentar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  if (!shop) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-4 text-center">
         <Scissors className="h-10 w-10 text-primary" />
@@ -69,17 +93,36 @@ export function BarbershopLinkPage() {
         <div className="mx-auto w-full max-w-xl space-y-6">
           <BarbershopHeader shop={shop} />
 
-          {isStaff ? (
-            <div className="rounded-lg border border-border/50 bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-              Você está logado como equipe. Para agendar como cliente, entre com uma conta de cliente.
-              <Button asChild variant="link" className="px-1">
-                <Link to="/dashboard">Ir para o painel</Link>
+          {!user ? (
+            <div className="space-y-2">
+              <Button size="lg" className="w-full text-base" onClick={() => goToAuth("criar")}>
+                <UserPlus className="h-5 w-5" />
+                Criar conta na {shop.name}
               </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Já tem conta?
+                <Button variant="link" className="px-1" onClick={() => goToAuth("entrar")}>
+                  Entrar e agendar
+                </Button>
+              </p>
+            </div>
+          ) : isStaff ? (
+            <div className="space-y-3 rounded-lg border border-border/50 bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+              <p>Você está logado como equipe. Para agendar como cliente, use uma conta de cliente.</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button size="sm" onClick={handleSwitchToCustomer}>
+                  <UserPlus />
+                  Sair e criar conta de cliente
+                </Button>
+                <Button size="sm" variant="outline" asChild>
+                  <Link to="/dashboard">Ir para o painel</Link>
+                </Button>
+              </div>
             </div>
           ) : (
             <Button size="lg" className="w-full text-base" onClick={handleBook} disabled={join.isPending}>
               {join.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <CalendarCheck className="h-5 w-5" />}
-              Agendar horário
+              Agendar na {shop.name}
             </Button>
           )}
 
