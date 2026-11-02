@@ -2256,6 +2256,32 @@ export type Database = {
       is_member: { Args: { p_shop: string }; Returns: boolean };
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       join_barbershop: { Args: { p_slug: string }; Returns: string };
+      recalculate_barber_goals: {
+        Args: { p_barber_id: string; p_month: number; p_year: number };
+        Returns: {
+          barber_id: string;
+          barbershop_id: string;
+          completed_at: string | null;
+          created_at: string;
+          current_value: number;
+          goal_type: Database["public"]["Enums"]["goal_type"];
+          id: string;
+          month: number;
+          reward_value: number;
+          service_category: string | null;
+          service_id: string | null;
+          status: Database["public"]["Enums"]["goal_status"];
+          target_value: number;
+          updated_at: string;
+          year: number;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "barber_goals";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       reject_subscription_request: {
         Args: { p_request_id: string };
         Returns: undefined;

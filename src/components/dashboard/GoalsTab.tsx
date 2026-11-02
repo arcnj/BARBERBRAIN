@@ -20,6 +20,12 @@ import { GoalForm } from "./goals/GoalForm";
 import { BarberStatement } from "./goals/BarberStatement";
 import { GoalsRanking } from "./goals/GoalsRanking";
 import { CommissionSettings } from "./goals/CommissionSettings";
+import { monthYearInSaoPaulo } from "@/shared/lib/dates";
+import {
+  goalNotifications,
+  type GoalNotification,
+  type GoalSnapshot,
+} from "@/features/metas/domain/goal-notifications";
 
 type GoalType = 'cuts' | 'revenue' | 'services' | 'product_sales';
 type GoalStatus = 'active' | 'completed' | 'expired';
@@ -55,8 +61,7 @@ export function GoalsTab() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState("goals");
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
+  const { month: currentMonth, year: currentYear } = monthYearInSaoPaulo();
 
   const isAdmin = role === 'admin';
 
@@ -110,211 +115,82 @@ export function GoalsTab() {
     }
   });
 
-  // Calculate goal progress from real data
-  const calculateGoalProgress = async (
-    barberId: string, 
-    goalType: GoalType, 
-    month: number, 
-    year: number,
-    serviceId?: string | null,
-    serviceCategory?: string | null
-  ) => {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
-    
-    let value = 0;
-
-    if (goalType === 'services' && serviceCategory) {
-      // Count completions of all services in this category
-      const { data: categoryServices } = await supabase
-        .from('services')
-        .select('id')
-        .contains('categories', [serviceCategory]);
-
-      const serviceIds = categoryServices?.map(s => s.id) || [];
-
-      if (serviceIds.length > 0) {
-        const { data } = await supabase
-          .from('order_items')
-          .select(`
-            id,
-            service_id,
-            order:orders!inner(barber_id, status, scheduled_at)
-          `)
-          .in('service_id', serviceIds)
-          .eq('order.barber_id', barberId)
-          .eq('order.status', 'completed')
-          .gte('order.scheduled_at', startDate.toISOString())
-          .lte('order.scheduled_at', endDate.toISOString());
-
-        value = data?.length || 0;
-      }
-    } else if (goalType === 'services' && serviceId) {
-      // Count specific service completions
-      const { data } = await supabase
-        .from('order_items')
-        .select(`
-          id,
-          order:orders!inner(barber_id, status, scheduled_at)
-        `)
-        .eq('service_id', serviceId)
-        .eq('order.barber_id', barberId)
-        .eq('order.status', 'completed')
-        .gte('order.scheduled_at', startDate.toISOString())
-        .lte('order.scheduled_at', endDate.toISOString());
-
-      value = data?.length || 0;
-    } else if (goalType === 'cuts') {
-      const { data } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('barber_id', barberId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', startDate.toISOString())
-        .lte('scheduled_at', endDate.toISOString());
-      
-      value = data?.length || 0;
-    } else if (goalType === 'revenue') {
-      const { data } = await supabase
-        .from('orders')
-        .select('total_price')
-        .eq('barber_id', barberId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', startDate.toISOString())
-        .lte('scheduled_at', endDate.toISOString());
-      
-      value = data?.reduce((sum, o) => sum + (o.total_price || 0), 0) || 0;
-    } else if (goalType === 'services') {
-      const { data } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('barber_id', barberId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', startDate.toISOString())
-        .lte('scheduled_at', endDate.toISOString());
-      
-      value = data?.length || 0;
-    } else if (goalType === 'product_sales') {
-      const { data } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          order_products(quantity)
-        `)
-        .eq('barber_id', barberId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', startDate.toISOString())
-        .lte('scheduled_at', endDate.toISOString());
-      
-      value = data?.reduce((sum, o) => 
-        sum + (o.order_products?.reduce((s, p) => s + (p.quantity || 0), 0) || 0)
-      , 0) || 0;
-    }
-
-    return value;
-  };
-
-  // Update goal progress mutation
+  // Progresso e premiação são calculados no banco (recalculate_barber_goals).
+  // Aqui pedimos o recálculo por barbeiro e avisamos o que mudou.
   const updateGoalProgress = useMutation({
-    mutationFn: async (goal: BarberGoal) => {
-      const currentValue = await calculateGoalProgress(
-        goal.barber_id, 
-        goal.goal_type, 
-        goal.month, 
-        goal.year,
-        goal.service_id,
-        goal.service_category
-      );
-
-      const isCompleted = currentValue >= goal.target_value;
-      const newStatus: GoalStatus = isCompleted ? 'completed' : goal.status;
-      const progressPercent = (currentValue / goal.target_value) * 100;
-      const previousProgressPercent = (goal.current_value / goal.target_value) * 100;
-
-      const { error } = await supabase
-        .from('barber_goals')
-        .update({
-          current_value: currentValue,
-          status: newStatus,
-          completed_at: isCompleted && !goal.completed_at ? new Date().toISOString() : goal.completed_at
-        })
-        .eq('id', goal.id);
-
-      if (error) throw error;
-
-      // If goal is completed and wasn't before, create financial record
-      if (isCompleted && goal.status !== 'completed' && goal.reward_value > 0) {
-        const { error: recordError } = await supabase
-          .from('barber_financial_records')
-          .insert({
-            barber_id: goal.barber_id,
-            record_type: 'goal_reward',
-            amount: goal.reward_value,
-            reference_id: goal.id,
-            description: `Premiação por meta atingida - ${getGoalTypeLabel(goal.goal_type)}`,
-            month: goal.month,
-            year: goal.year
-          });
-
-        if (recordError) console.error('Error creating financial record:', recordError);
+    mutationFn: async (targetGoals: BarberGoal[]) => {
+      const groups = new Map<string, BarberGoal[]>();
+      for (const goal of targetGoals) {
+        const key = `${goal.barber_id}|${goal.month}|${goal.year}`;
+        groups.set(key, [...(groups.get(key) ?? []), goal]);
       }
 
-      return { 
-        currentValue, 
-        isCompleted, 
-        progressPercent, 
-        previousProgressPercent,
-        barberName: goal.barber?.name,
-        goalType: goal.goal_type,
-        targetValue: goal.target_value,
-        rewardValue: goal.reward_value
-      };
+      const notifications: GoalNotification[] = [];
+      for (const group of groups.values()) {
+        const { barber_id, month, year } = group[0];
+        const { data, error } = await supabase.rpc("recalculate_barber_goals", {
+          p_barber_id: barber_id,
+          p_month: month,
+          p_year: year,
+        });
+        if (error) throw error;
+        const before = group.map(toSnapshot);
+        const after = (data ?? []).map((g) => {
+          const old = group.find((o) => o.id === g.id);
+          return toSnapshot({ ...(old ?? (g as BarberGoal)), ...g });
+        });
+        notifications.push(...goalNotifications(before, after));
+      }
+      return notifications;
     },
-    onSuccess: (data) => {
+    onSuccess: (notifications) => {
       queryClient.invalidateQueries({ queryKey: ['barber-goals'] });
-      
-      // Notify when barber reaches 80% threshold (but wasn't there before)
-      if (data.progressPercent >= 80 && data.previousProgressPercent < 80 && !data.isCompleted) {
+      queryClient.invalidateQueries({ queryKey: ['barber-financial-records'] });
+      for (const n of notifications) {
         toast({
-          title: "🔥 Meta quase atingida!",
-          description: `${data.barberName || 'Barbeiro'} está a ${Math.round(100 - data.progressPercent)}% de atingir a meta de ${getGoalTypeLabel(data.goalType)}! Faltam apenas ${Math.round(data.targetValue - data.currentValue)} ${data.goalType === 'revenue' ? 'reais' : 'unidades'} para ganhar R$ ${data.rewardValue.toFixed(0)}!`,
-          duration: 8000
+          title: n.kind === 'completed' ? "🏆 Meta atingida!" : "🔥 Meta quase atingida!",
+          description: n.message,
+          duration: n.kind === 'completed' ? 10000 : 8000,
         });
       }
-      
-      // Notify when goal is completed
-      if (data.isCompleted && data.previousProgressPercent < 100) {
-        toast({
-          title: "🏆 Meta atingida!",
-          description: `Parabéns! ${data.barberName || 'Barbeiro'} completou a meta de ${getGoalTypeLabel(data.goalType)} e ganhou R$ ${data.rewardValue.toFixed(0)} de premiação!`,
-          duration: 10000
-        });
-      }
-    }
+    },
+    onError: (err) => {
+      toast({
+        title: "Não foi possível atualizar as metas",
+        description: err instanceof Error && err.message ? err.message : "Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    },
   });
 
-  // Auto-refresh goals on mount
-  const hasAutoRefreshed = useRef(false);
-  useEffect(() => {
-    if (goals && goals.length > 0 && !hasAutoRefreshed.current) {
-      hasAutoRefreshed.current = true;
-      const activeGoals = goals.filter(g => g.status === 'active');
-      (async () => {
-        for (const goal of activeGoals) {
-          await updateGoalProgress.mutateAsync(goal);
-        }
-      })();
-    }
-  }, [goals]);
+  const toSnapshot = (goal: BarberGoal): GoalSnapshot => ({
+    id: goal.id,
+    label: getGoalTypeLabel(goal.goal_type, goal.service?.name, goal.service_category),
+    barberName: goal.barber?.name ?? null,
+    targetValue: Number(goal.target_value),
+    currentValue: Number(goal.current_value),
+    rewardValue: Number(goal.reward_value),
+    status: goal.status,
+    isRevenue: goal.goal_type === 'revenue',
+  });
 
-  // Refresh all goals progress
+  // Metas que este usuário pode recalcular: todas (admin) ou só as próprias (barbeiro).
+  const refreshableGoals = (goals ?? []).filter(
+    (g) => g.status === 'active' && (isAdmin || g.barber_id === currentBarber?.id),
+  );
+
+  // Ao abrir a aba, recalcula uma vez (cobre metas criadas depois dos atendimentos).
+  const hasAutoRefreshed = useRef(false);
+  const { mutate: refreshGoals } = updateGoalProgress;
+  useEffect(() => {
+    if (hasAutoRefreshed.current || refreshableGoals.length === 0) return;
+    hasAutoRefreshed.current = true;
+    refreshGoals(refreshableGoals);
+  }, [refreshableGoals, refreshGoals]);
+
   const refreshAllGoals = async () => {
-    if (!goals) return;
-    
-    for (const goal of goals.filter(g => g.status === 'active')) {
-      await updateGoalProgress.mutateAsync(goal);
-    }
-    
+    if (refreshableGoals.length === 0) return;
+    await updateGoalProgress.mutateAsync(refreshableGoals);
     toast({
       title: "Progresso atualizado",
       description: "O progresso de todas as metas foi atualizado."

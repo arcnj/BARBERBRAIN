@@ -83,6 +83,7 @@ Features: auth, agenda, agendamento, disponibilidade, barbeiros, clientes, servi
 
 ## Regras de trabalho (obrigatórias)
 
+0. **Segurança e experiência do usuário em primeiro lugar (diretriz do dono).** Em toda mudança: (a) a regra que importa (preço, permissão, isolamento entre barbearias, status, dinheiro) é garantida no banco, nunca só na tela; (b) toda mudança de acesso tem teste que tenta burlar; (c) a tela explica o que falta e o que deu errado em português, sem erro genérico nem botão escondido; (d) se notar uma vulnerabilidade ou atrito de uso fora do escopo, registrar em `docs/DIAGNOSTICO.md` e avisar o dono.
 1. **Uma etapa do `docs/PLANO.md` por vez**, em branch própria (`etapa-<n>-<slug>`), com **commits pequenos** (Conventional Commits em português, ex.: `fix(rls): ...`, `refactor(agenda): ...`).
 2. **`npm run lint`, `npm run typecheck`, `npm test` e `npm run build` precisam passar antes de cada commit.** O CI (`.github/workflows/ci.yml`) roda os mesmos passos em todo PR.
 3. **Nenhuma funcionalidade pode sumir.** Se algo parecer bug ou código morto, **perguntar ao dono antes de remover ou mudar o comportamento.**

@@ -2,9 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useCommissions } from "@/hooks/useCommissions";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
-import { useSubscriptionUsage } from "@/hooks/useSubscriptionUsage";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
 import { OrderCoverage } from "@/components/subscriptions/OrderCoverage";
@@ -119,9 +117,8 @@ export function AgendaTab() {
 
   const queryClient = useQueryClient();
   const isAdmin = role === "admin";
-  const { registerCommissions } = useCommissions();
-  const { updateBarberGoals } = useGoalProgress();
-  const { recordUsage } = useSubscriptionUsage();
+  // Comissões, metas e uso da assinatura são registrados pelo banco ao concluir.
+  const { snapshotGoals, afterOrdersCompleted } = useGoalProgress();
 
   // Fetch barber ID for current user (if they are a barber)
   const { data: currentBarber, isLoading: loadingBarber } = useQuery({
@@ -309,45 +306,18 @@ export function AgendaTab() {
       status: OrderStatus;
       orderData?: Order;
     }) => {
-      const { error } = await supabase
+      const before =
+        status === "completed" && orderData?.barber_id ? await snapshotGoals([orderData.barber_id]) : null;
+
+      const { data, error } = await supabase
         .from("orders")
         .update({ status })
-        .eq("id", orderId);
-
+        .eq("id", orderId)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("Sem permissão para alterar este atendimento.");
 
-      // Registra utilização da assinatura (se o cliente for assinante)
-      if (status === "completed" && orderData?.customer_id) {
-        try {
-          await recordUsage.mutateAsync({
-            orderId,
-            customerId: orderData.customer_id,
-            barberId: orderData.barber_id ?? null,
-            usedAt: orderData.scheduled_at || undefined,
-          });
-        } catch {
-          /* assinatura é complementar ao atendimento */
-        }
-      }
-
-      // If completing an order, register commissions and update goals automatically
-      if (status === "completed" && orderData?.barber_id && orderData?.scheduled_at) {
-        const serviceTotal = orderData.order_items?.reduce((sum, item) => sum + (item.price || 0), 0) || 0;
-        const productTotal = orderData.order_products?.reduce((sum, item) => sum + (item.price * item.quantity || 0), 0) || 0;
-
-        if (serviceTotal > 0 || productTotal > 0) {
-          await registerCommissions.mutateAsync({
-            orderId,
-            barberId: orderData.barber_id,
-            scheduledAt: orderData.scheduled_at,
-            serviceTotal,
-            productTotal
-          });
-        }
-
-        // Update barber goals automatically
-        await updateBarberGoals.mutateAsync(orderData.barber_id);
-      }
+      if (before) await afterOrdersCompleted(before);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
@@ -356,8 +326,8 @@ export function AgendaTab() {
       toast.success("Status atualizado!");
       setSelectedOrder(null);
     },
-    onError: () => {
-      toast.error("Erro ao atualizar status");
+    onError: (err) => {
+      toast.error(err instanceof Error && err.message ? err.message : "Erro ao atualizar o status. Tente novamente.");
     },
   });
 
