@@ -43,20 +43,23 @@ function whatsappLink(phone: string, message: string) {
 
 export function MySubscriptionTab({
   userId,
+  barbershopId,
   barbershopWhatsapp,
   customerName,
 }: {
   userId: string | undefined;
+  /** barbearia atual do cliente: assinatura e planos dela */
+  barbershopId: string | undefined;
   barbershopWhatsapp?: string;
   customerName?: string;
 }) {
-  const { data: quota } = useSubscriptionQuota(userId);
-  const { pendingRequest, createRequest } = useMySubscriptionRequest(userId);
+  const { data: quota } = useSubscriptionQuota(userId, barbershopId);
+  const { pendingRequest, createRequest } = useMySubscriptionRequest(userId, barbershopId);
 
 
   const { data: subscription, isLoading } = useQuery({
-    queryKey: ["my-subscription", userId],
-    enabled: !!userId,
+    queryKey: ["my-subscription", userId, barbershopId],
+    enabled: !!userId && !!barbershopId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customer_subscriptions")
@@ -64,6 +67,7 @@ export function MySubscriptionTab({
           "id, current_period_end, start_date, status, plan:subscription_plans(id, name, description, price, benefits)"
         )
         .eq("customer_id", userId!)
+        .eq("barbershop_id", barbershopId!)
         .order("current_period_end", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -87,11 +91,13 @@ export function MySubscriptionTab({
   });
 
   const { data: plans } = useQuery({
-    queryKey: ["available-plans"],
+    queryKey: ["available-plans", barbershopId],
+    enabled: !!barbershopId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscription_plans")
         .select("id, name, description, price, benefits")
+        .eq("barbershop_id", barbershopId!)
         .eq("active", true)
         .order("price");
       if (error) throw error;

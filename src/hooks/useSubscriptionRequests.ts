@@ -124,18 +124,19 @@ export function useRejectSubscriptionRequest() {
 }
 
 /** Pedido pendente do próprio cliente. */
-export function useMySubscriptionRequest(userId: string | undefined) {
+export function useMySubscriptionRequest(userId: string | undefined, barbershopId: string | undefined) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ["my-subscription-request", userId],
-    enabled: !!userId,
+    queryKey: ["my-subscription-request", userId, barbershopId],
+    enabled: !!userId && !!barbershopId,
     staleTime: 10_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("subscription_requests")
         .select("id, plan_id, kind, status, created_at, plan:subscription_plans(name, price)")
         .eq("customer_id", userId!)
+        .eq("barbershop_id", barbershopId!)
         .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(1)
@@ -153,6 +154,7 @@ export function useMySubscriptionRequest(userId: string | undefined) {
     }) => {
       const { error } = await supabase.from("subscription_requests").insert({
         customer_id: userId!,
+        barbershop_id: barbershopId!,
         plan_id: input.planId,
         kind: input.kind,
         subscription_id: input.subscriptionId ?? null,
@@ -163,7 +165,7 @@ export function useMySubscriptionRequest(userId: string | undefined) {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-subscription-request", userId] });
+      queryClient.invalidateQueries({ queryKey: ["my-subscription-request", userId, barbershopId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });

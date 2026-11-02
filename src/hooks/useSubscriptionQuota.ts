@@ -17,19 +17,22 @@ export interface SubscriptionQuota {
  * utilização (subscription_usages) — não por contagem de agendamentos.
  * Plano sem limite (monthly_visit_limit null) nunca bloqueia.
  */
-export function useSubscriptionQuota(userId: string | undefined) {
+export function useSubscriptionQuota(userId: string | undefined, barbershopId?: string) {
   return useQuery({
-    queryKey: ["subscription-quota", userId],
+    queryKey: ["subscription-quota", userId, barbershopId ?? null],
     enabled: !!userId,
     staleTime: 30_000,
     queryFn: async (): Promise<SubscriptionQuota | null> => {
-      const { data: sub, error } = await supabase
+      let subQuery = supabase
         .from("customer_subscriptions")
         .select(
           "id, current_period_end, status, plan:subscription_plans(name, monthly_visit_limit)"
         )
         .eq("customer_id", userId!)
-        .eq("status", "active")
+        .eq("status", "active");
+      // na área do cliente, só a assinatura da barbearia atual
+      if (barbershopId) subQuery = subQuery.eq("barbershop_id", barbershopId);
+      const { data: sub, error } = await subQuery
         .order("current_period_end", { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -14,21 +14,25 @@ interface MySubscription {
 
 export function MySubscriptionCard({
   userId,
+  barbershopId,
   onOpen,
 }: {
   userId: string | undefined;
+  /** barbearia atual do cliente: só a assinatura dela aparece */
+  barbershopId: string | undefined;
   onOpen?: () => void;
 }) {
   const [subscription, setSubscription] = useState<MySubscription | null>(null);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !barbershopId) return;
     let active = true;
     (async () => {
       const { data } = await supabase
         .from("customer_subscriptions")
         .select("current_period_end, status, plan:subscription_plans(name, price)")
         .eq("customer_id", userId)
+        .eq("barbershop_id", barbershopId)
         .eq("status", "active")
         .order("current_period_end", { ascending: false })
         .limit(1)
@@ -38,7 +42,7 @@ export function MySubscriptionCard({
     return () => {
       active = false;
     };
-  }, [userId]);
+  }, [userId, barbershopId]);
 
   if (!subscription) return null;
 

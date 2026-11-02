@@ -27,9 +27,11 @@ interface LastOrder {
 
 interface SatisfactionPopupProps {
   userId: string;
+  /** pesquisa da barbearia atual do cliente */
+  barbershopId: string;
 }
 
-export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
+export function SatisfactionPopup({ userId, barbershopId }: SatisfactionPopupProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<SurveyAnswers>({});
@@ -37,12 +39,12 @@ export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
 
   // Check if survey is enabled
   const { data: settings } = useQuery({
-    queryKey: ["satisfaction-settings"],
+    queryKey: ["satisfaction-settings", barbershopId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("satisfaction_settings")
         .select("*")
-        .limit(1)
+        .eq("barbershop_id", barbershopId)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -51,12 +53,13 @@ export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
 
   // Get last completed order
   const { data: lastOrder } = useQuery({
-    queryKey: ["last-completed-order", userId],
+    queryKey: ["last-completed-order", userId, barbershopId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("id, scheduled_at, barber_id")
         .eq("customer_id", userId)
+        .eq("barbershop_id", barbershopId)
         .eq("status", "completed")
         .order("scheduled_at", { ascending: false })
         .limit(1)
@@ -67,8 +70,9 @@ export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
       // Fetch barber name separately
       let barberName: string | null = null;
       if (data.barber_id) {
+        // view pública: só o nome, sem e-mail ou telefone do barbeiro
         const { data: barber } = await supabase
-          .from("barbers")
+          .from("barbers_public")
           .select("name")
           .eq("id", data.barber_id)
           .maybeSingle();
@@ -98,11 +102,12 @@ export function SatisfactionPopup({ userId }: SatisfactionPopupProps) {
 
   // Get questions
   const { data: questions = [] } = useQuery({
-    queryKey: ["satisfaction-questions-active"],
+    queryKey: ["satisfaction-questions-active", barbershopId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("satisfaction_questions")
         .select("*")
+        .eq("barbershop_id", barbershopId)
         .eq("active", true)
         .order("question_order");
       if (error) throw error;

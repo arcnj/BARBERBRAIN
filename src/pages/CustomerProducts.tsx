@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Helmet } from "react-helmet";
 import { ArrowLeft, Loader2, Package, Check, Flame, ShoppingBag, Filter, X, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useCustomerBarbershop } from "@/features/agendamento";
 
 interface Product {
   id: string;
@@ -55,6 +56,9 @@ export default function CustomerProducts() {
   const [searchParams] = useSearchParams();
   const { user, role, loading } = useAuth();
   const isMobile = useIsMobile();
+  // produtos da barbearia atual do cliente
+  const { barbershop } = useCustomerBarbershop();
+  const shopId = barbershop?.id;
   
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
@@ -91,10 +95,12 @@ export default function CustomerProducts() {
   }, [user, role, loading, navigate]);
 
   const fetchProducts = async () => {
+    if (!shopId) return;
     try {
       const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select("id, name, description, price, image_url, category, stock_quantity")
+        .eq("barbershop_id", shopId)
         .eq("active", true)
         .order("name");
 
@@ -103,7 +109,8 @@ export default function CustomerProducts() {
       // Fetch sales count
       const { data: salesData, error: salesError } = await supabase
         .from("order_products")
-        .select("product_id, quantity");
+        .select("product_id, quantity")
+        .eq("barbershop_id", shopId);
 
       if (salesError) {
         console.error("Error fetching sales:", salesError);
@@ -132,10 +139,12 @@ export default function CustomerProducts() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && shopId) {
       fetchProducts();
     }
-  }, [user]);
+    // fetchProducts é recriada a cada render; recarrega ao trocar de usuário ou barbearia
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, shopId]);
 
   // Get all categories with product count
   const categoriesWithCount = useMemo(() => {
