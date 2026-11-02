@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { translateAuthError } from "@/lib/auth-errors";
@@ -14,6 +14,7 @@ import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import { z } from "zod";
 import { MFAVerify } from "@/components/auth/MFAVerify";
+import { useBarbershopPublic, useJoinBarbershop } from "@/features/agendamento";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -36,6 +37,11 @@ export default function Auth() {
   const navigate = useNavigate();
   const { user, role, loading, signIn, signUp, needsMFAVerification, refreshMFAStatus } = useAuth();
   const { toast } = useToast();
+  // Vindo do link de uma barbearia (/b/<slug>): o cliente entra nessa barbearia
+  const [searchParams] = useSearchParams();
+  const barbershopSlug = searchParams.get("b") ?? undefined;
+  const { data: linkShop } = useBarbershopPublic(barbershopSlug);
+  const joinBarbershop = useJoinBarbershop();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMFAVerify, setShowMFAVerify] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -65,11 +71,18 @@ export default function Auth() {
       // Redirect based on role
       if (role === "barber" || role === "admin") {
         navigate("/dashboard");
+      } else if (barbershopSlug) {
+        // cliente que entrou pelo link: vira cliente daquela barbearia (idempotente)
+        joinBarbershop.mutate(barbershopSlug, {
+          onSettled: () => navigate("/cliente"),
+        });
       } else {
         navigate("/cliente");
       }
     }
-  }, [user, role, loading, navigate, needsMFAVerification]);
+    // joinBarbershop.mutate é estável; incluir o objeto da mutation reexecutaria o efeito
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, role, loading, navigate, needsMFAVerification, barbershopSlug]);
 
   const handleMFAVerified = async () => {
     setShowMFAVerify(false);
@@ -119,7 +132,9 @@ export default function Auth() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth`,
+          redirectTo: barbershopSlug
+            ? `${window.location.origin}/auth?b=${encodeURIComponent(barbershopSlug)}`
+            : `${window.location.origin}/auth`,
         },
       });
 
@@ -161,6 +176,7 @@ export default function Auth() {
         full_name: signupData.full_name,
         phone: signupData.phone || undefined,
         birth_date: signupData.birth_date || undefined,
+        barbershop_slug: barbershopSlug,
       });
 
       if (error) {
@@ -250,6 +266,11 @@ export default function Auth() {
               </span>
             </div>
             <p className="text-muted-foreground">O cérebro da sua barbearia</p>
+            {linkShop && (
+              <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm text-foreground">
+                Você está entrando na <span className="font-semibold">{linkShop.name}</span>
+              </p>
+            )}
           </div>
 
           <Card className="glass border-border/50">
