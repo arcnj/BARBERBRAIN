@@ -17,7 +17,7 @@ export function BarbershopLinkPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const { user, role, loading: authLoading } = useAuth();
-  const { data: shop, isLoading, isError } = useBarbershopPublic(slug);
+  const { data: shop, isLoading, isError, refetch, isRefetching } = useBarbershopPublic(slug);
   const join = useJoinBarbershop();
 
   const isStaff = role === "admin" || role === "barber";
@@ -45,7 +45,21 @@ export function BarbershopLinkPage() {
     );
   }
 
-  if (isError || !shop) {
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-4 text-center">
+        <Scissors className="h-10 w-10 text-primary" />
+        <h1 className="font-heading text-2xl font-bold">Não foi possível carregar a barbearia</h1>
+        <p className="text-muted-foreground">Verifique sua internet e tente de novo em instantes.</p>
+        <Button variant="outline" onClick={() => refetch()} disabled={isRefetching}>
+          {isRefetching && <Loader2 className="animate-spin" />}
+          Tentar de novo
+        </Button>
+      </div>
+    );
+  }
+
+  if (!shop) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 p-4 text-center">
         <Scissors className="h-10 w-10 text-primary" />
