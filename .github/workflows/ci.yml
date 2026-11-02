@@ -67,7 +67,16 @@ jobs:
           path: /tmp/types.ts
 
       - name: Conferir tipos versionados
-        run: diff -u src/integrations/supabase/types.ts /tmp/types.ts
+        run: |
+          if ! diff -q src/integrations/supabase/types.ts /tmp/types.ts > /dev/null; then
+            echo "::error::src/integrations/supabase/types.ts desatualizado. Baixe o artefato supabase-types ou rode npm run db:types."
+            diff -u src/integrations/supabase/types.ts /tmp/types.ts | head -200 || true
+            # cópia compactada no log, para quem não consegue baixar o artefato
+            echo "----- TYPES_GZ_BASE64_BEGIN -----"
+            gzip -9 -c /tmp/types.ts | base64 -w 120
+            echo "----- TYPES_GZ_BASE64_END -----"
+            exit 1
+          fi
 
       - run: supabase stop --no-backup
         if: always()
