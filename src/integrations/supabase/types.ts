@@ -2202,6 +2202,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      can_see_user: { Args: { p_user: string }; Returns: boolean };
       confirm_subscription_payment: {
         Args: {
           p_amount: number;
@@ -2253,8 +2254,11 @@ export type Database = {
         };
         Returns: boolean;
       };
+      is_any_shop_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_member: { Args: { p_shop: string }; Returns: boolean };
+      is_own_barber: { Args: { p_barber: string }; Returns: boolean };
       is_platform_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      is_shop_staff: { Args: { p_shop: string }; Returns: boolean };
       join_barbershop: { Args: { p_slug: string }; Returns: string };
       recalculate_barber_goals: {
         Args: { p_barber_id: string; p_month: number; p_year: number };

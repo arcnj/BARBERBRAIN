@@ -37,6 +37,28 @@ As migrations foram aplicadas do zero num Postgres 16 local (com simulação mí
 | C-01 | barbeiro faz `update services set price=1` | **aceito** |
 | A-07 | `insert ... on conflict (cycle_id, order_id, service_id)` em `subscription_usages` | **erro** `no unique or exclusion constraint matching the ON CONFLICT` (o uso de assinatura nunca é gravado) |
 
+## 0.2 Andamento das correções
+
+| ID | Situação | Onde |
+|---|---|---|
+| C-01 | ✅ Corrigido: só o admin da barbearia altera catálogo, preços e configurações | 1.0d parte 2 (`20261103130000`) |
+| C-02 | ✅ Corrigido: cliente só cria pedido pendente e só cancela; não muda preço nem conclui | 1.0d parte 2 |
+| C-03 | ✅ Corrigido: comissão e premiação calculadas pelo banco; barbeiro só lê o próprio extrato | 1.0d partes 1 e 2 |
+| C-04 | ⏳ Disponibilidade no servidor (RPC `get_available_slots`) | Etapa 1.5 |
+| C-05 | ✅ Corrigido: toda política filtra pela barbearia; teste de isolamento com duas barbearias | 1.0a–1.0d |
+| A-01 | ✅ Corrigido: premiação paga uma única vez | 1.0d parte 1 |
+| A-02 | ✅ Corrigido: só admin envia imagens e só altera ou apaga o que ele mesmo enviou | 1.0d parte 2 |
+| A-03 | ⏳ Parcial: cliente só vê barbeiros da própria barbearia, mas ainda vê e-mail e telefone deles e o `cost_price` dos produtos | próxima etapa de catálogo |
+| A-04 | ⏳ Cupom e combo pela RPC `create_appointment` | Etapa 1.5 |
+| A-05 | ⏳ Parcial: barbeiro apagado perde a agenda, mas continua membro (vê clientes e catálogo) | 1.0e (edge functions) |
+| A-07 | ✅ Corrigido: uso da assinatura registrado pelo banco | 1.0d parte 1 |
+
+Novos achados (registrados durante a 1.0d):
+- **N-01 (alto, corrigido na 1.0d parte 2)**: o admin de qualquer barbearia podia gravar qualquer papel em `user_roles`, e o papel era copiado para todas as barbearias da pessoa (virar admin de outra barbearia). Agora o admin só registra o papel de cliente para membros da própria barbearia, e a cópia para `barbershop_members` só acontece pelas edge functions.
+- **N-02 (médio, corrigido)**: RPCs de assinatura (`confirm_subscription_payment`, `approve_…`, `reject_…`, `reverse_subscription_usage`) aceitavam o admin de qualquer barbearia; `confirm_subscription_payment` e `reverse_subscription_usage` podiam ser chamadas por visitante anônimo (a checagem barrava, mas a porta estava aberta).
+- **N-03 (baixo, corrigido)**: `get_user_role` revelava o papel de qualquer usuário a visitantes anônimos.
+- **N-04 (baixo, aberto)**: o admin pode incluir qualquer usuário (pelo id) como membro da própria barbearia e assim ver o perfil dele. Exige conhecer o id; tratar junto com o convite de barbeiros (1.0e).
+
 ## 1. Mapa do aplicativo
 
 ### 1.1 Rotas (`src/App.tsx:23-31`)

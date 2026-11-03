@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getDbErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/hooks/useAuth";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -327,7 +328,7 @@ export function AgendaTab() {
       setSelectedOrder(null);
     },
     onError: (err) => {
-      toast.error(err instanceof Error && err.message ? err.message : "Erro ao atualizar o status. Tente novamente.");
+      toast.error(getDbErrorMessage(err, "Erro ao atualizar o status. Tente novamente."));
     },
   });
 
