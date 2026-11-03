@@ -8,7 +8,7 @@ export function translateAuthError(err: unknown, fallback: string): string {
   const msg = raw.toLowerCase();
 
   if (!raw) return fallback;
-  if (msg.includes("invalid login credentials")) return "Email ou senha incorretos";
+  if (msg.includes("invalid login credentials")) return "E-mail ou senha incorretos. Confira o e-mail digitado ou use “Esqueci minha senha”.";
   if (msg.includes("email not confirmed")) return "Confirme seu email antes de fazer login";
   if (msg.includes("already registered") || msg.includes("already been registered")) {
     return "Este email já está cadastrado";

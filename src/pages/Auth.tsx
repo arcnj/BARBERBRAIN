@@ -15,6 +15,7 @@ import { Helmet } from "react-helmet";
 import { z } from "zod";
 import { MFAVerify } from "@/components/auth/MFAVerify";
 import { BarbershopHeader, useBarbershopPublic, useJoinBarbershop } from "@/features/agendamento";
+import { EmailTypoHint, ForgotPasswordDialog } from "@/features/auth";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -54,6 +55,7 @@ export default function Auth() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMFAVerify, setShowMFAVerify] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
@@ -347,11 +349,22 @@ export default function Auth() {
                         placeholder="seu@email.com"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
+                        autoComplete="email"
                         required
                       />
+                      <EmailTypoHint email={loginEmail} onFix={setLoginEmail} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="login-password">Senha</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="login-password">Senha</Label>
+                        <button
+                          type="button"
+                          className="text-sm text-primary hover:underline"
+                          onClick={() => setForgotOpen(true)}
+                        >
+                          Esqueci minha senha
+                        </button>
+                      </div>
                       <Input
                         id="login-password"
                         type="password"
@@ -442,7 +455,12 @@ export default function Auth() {
                         onChange={(e) =>
                           setSignupData({ ...signupData, email: e.target.value })
                         }
+                        autoComplete="email"
                         required
+                      />
+                      <EmailTypoHint
+                        email={signupData.email}
+                        onFix={(email) => setSignupData({ ...signupData, email })}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -512,6 +530,14 @@ export default function Auth() {
               )}
             </CardContent>
           </Card>
+
+          <ForgotPasswordDialog
+            key={forgotOpen ? "aberto" : "fechado"}
+            open={forgotOpen}
+            onOpenChange={setForgotOpen}
+            defaultEmail={loginEmail}
+            barbershopSlug={barbershopSlug}
+          />
 
           {linkShop && (
             <p className="text-center text-xs text-muted-foreground">

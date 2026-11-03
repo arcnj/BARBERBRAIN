@@ -5,7 +5,7 @@ const err = (message: string) => ({ message });
 
 describe("translateAuthError", () => {
   it("mantém as traduções que já existiam", () => {
-    expect(translateAuthError(err("Invalid login credentials"), "Erro")).toBe("Email ou senha incorretos");
+    expect(translateAuthError(err("Invalid login credentials"), "Erro")).toBe("E-mail ou senha incorretos. Confira o e-mail digitado ou use “Esqueci minha senha”.");
     expect(translateAuthError(err("Email not confirmed"), "Erro")).toBe("Confirme seu email antes de fazer login");
     expect(translateAuthError(err("User already registered"), "Erro")).toBe("Este email já está cadastrado");
   });
