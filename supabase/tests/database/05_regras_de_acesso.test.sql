@@ -45,9 +45,10 @@ select throws_like(
 select throws_like(
   $$select public.reject_subscription_request(gen_random_uuid())$$,
   '%administrador da barbearia%', 'RPC de assinatura exige ser admin da barbearia');
+-- (o Supabase não deixa apagar arquivos por SQL; a regra de alterar e apagar é a mesma)
 select is_empty(
-  $$delete from storage.objects where id = '70000000-0000-0000-0000-000000000001' returning 1$$,
-  'dono 2 não apaga a logo da barbearia 1');
+  $$update storage.objects set name = 'trocada.png' where id = '70000000-0000-0000-0000-000000000001' returning 1$$,
+  'dono 2 não altera a logo da barbearia 1');
 select throws_like(
   $$insert into public.user_roles (user_id, role) values ('a0000000-0000-0000-0000-000000000004', 'admin')$$,
   '%row-level security%', 'admin não dá papel de admin para ninguém');
