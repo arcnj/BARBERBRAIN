@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { getDbErrorMessage } from "@/lib/errors";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { SubscriberBadge } from "@/components/ui/subscriber-badge";
@@ -121,7 +122,7 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
       toast.success("Status atualizado!");
     },
     onError: (err) => {
-      toast.error(err instanceof Error && err.message ? err.message : "Erro ao atualizar o status. Tente novamente.");
+      toast.error(getDbErrorMessage(err, "Erro ao atualizar o status. Tente novamente."));
     },
   });
 
@@ -153,7 +154,7 @@ export function TodayAppointments({ orders, isLoading }: TodayAppointmentsProps)
     },
     onError: (err) => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
-      toast.error(err instanceof Error && err.message ? err.message : "Erro ao finalizar os atendimentos. Tente novamente.");
+      toast.error(getDbErrorMessage(err, "Erro ao finalizar os atendimentos. Tente novamente."));
     },
   });
 
