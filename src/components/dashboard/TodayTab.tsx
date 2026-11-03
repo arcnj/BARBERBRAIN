@@ -4,6 +4,7 @@ import { DollarSign, Users, Clock, TrendingUp, UserX, Loader2, Cake, Gift } from
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchShopCustomerIds } from "@/features/clientes";
 import { useAuth } from "@/hooks/useAuth";
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -107,15 +108,8 @@ export function TodayTab() {
     queryKey: ["today-birthdays", todayMonth, todayDay],
     queryFn: async () => {
       // First get all customer user_ids
-      const { data: customerRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-      
-      if (rolesError) throw rolesError;
-      if (!customerRoles?.length) return [];
-
-      const customerIds = customerRoles.map(r => r.user_id);
+      const customerIds = await fetchShopCustomerIds();
+      if (customerIds.length === 0) return [];
 
       // Get profiles with birthdays
       const { data: profiles, error: profilesError } = await supabase

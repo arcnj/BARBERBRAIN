@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchShopCustomerIds } from "@/features/clientes";
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
@@ -59,25 +60,21 @@ export function ClientsTab() {
   const { data: customers, isLoading: loadingCustomers } = useQuery({
     queryKey: ["customers-with-orders"],
     queryFn: async () => {
-      const { data: customerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
+      const customerIds = await fetchShopCustomerIds();
+      if (customerIds.length === 0) return [];
 
-      if (!customerRoles?.length) return [];
-
-      const customerIds = customerRoles.map(r => r.user_id);
-
-      const { data: profiles } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("*")
         .in("user_id", customerIds);
+      if (profilesError) throw profilesError;
 
-      const { data: orders } = await supabase
+      const { data: orders, error: ordersError } = await supabase
         .from("orders")
         .select("customer_id, total_price, scheduled_at, status")
         .eq("status", "completed")
         .in("customer_id", customerIds);
+      if (ordersError) throw ordersError;
 
       const clientsWithMetrics: ClientWithMetrics[] = (profiles || []).map(profile => {
         const customerOrders = orders?.filter(o => o.customer_id === profile.user_id) || [];

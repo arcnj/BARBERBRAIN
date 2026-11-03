@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchShopCustomerIds } from "@/features/clientes";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -70,11 +71,7 @@ export function SubscribersList() {
   const { data: customers } = useQuery({
     queryKey: ["subscription-customers"],
     queryFn: async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-      const ids = (roles || []).map((r) => r.user_id);
+      const ids = await fetchShopCustomerIds();
       if (!ids.length) return [];
       const { data } = await supabase
         .from("profiles")
