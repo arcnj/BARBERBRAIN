@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Brain, Loader2, TrendingUp, Users, Calendar, DollarSign, Package, Scissors, Tag, Award, AlertTriangle, Sparkles, UserCog, Cake, Gift, Percent } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchShopCustomerIds } from "@/features/clientes";
 import { startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, format, getHours, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, getMonth, getDate, addDays, isWithinInterval, eachMonthOfInterval, startOfYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { StatCard } from "@/components/ui/stat-card";
@@ -264,14 +265,8 @@ export function AnalystTab() {
       const currentDay = getDate(now);
       
       // Get all customer user_ids
-      const { data: customerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-
-      if (!customerRoles?.length) return { total: 0, today: 0, thisWeek: 0 };
-
-      const customerIds = customerRoles.map(r => r.user_id);
+      const customerIds = await fetchShopCustomerIds();
+      if (customerIds.length === 0) return { total: 0, today: 0, thisWeek: 0 };
 
       // Get profiles with birth_date
       const { data: profiles } = await supabase
