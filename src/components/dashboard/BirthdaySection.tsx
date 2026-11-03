@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Cake, Gift, PartyPopper, Settings, Loader2, MessageSquare } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchShopCustomerIds } from "@/features/clientes";
 import { format, getMonth, getDate, addDays, subDays, isSameDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { SegmentCard } from "@/components/ui/segment-card";
@@ -103,14 +104,8 @@ export function BirthdaySection({ defaultExpanded = false }: BirthdaySectionProp
     queryKey: ["birthday-clients", currentMonth],
     queryFn: async () => {
       // Get all customer user_ids
-      const { data: customerRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "customer");
-
-      if (!customerRoles?.length) return [];
-
-      const customerIds = customerRoles.map(r => r.user_id);
+      const customerIds = await fetchShopCustomerIds();
+      if (customerIds.length === 0) return [];
 
       // Get profiles for customers with birth_date
       const { data: profiles } = await supabase
