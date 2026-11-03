@@ -11,6 +11,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerProducts from "./pages/CustomerProducts";
 import NotFound from "./pages/NotFound";
 import { BarbershopLinkPage, CustomerBarbershopProvider } from "@/features/agendamento";
+import { ResetPasswordPage } from "@/features/auth";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
               }
             />
             <Route path="/b/:slug" element={<BarbershopLinkPage />} />
+            <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
