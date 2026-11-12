@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { Helmet } from "react-helmet";
 import { ArrowLeft, Loader2, Package, Check, Flame, ShoppingBag, Filter, X, AlertTriangle } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useCustomerBarbershop } from "@/features/agendamento";
+import { CartBar, ProductCartControl, useCustomerBarbershop, useProductCart } from "@/features/agendamento";
+import { formatBRL } from "@/shared/lib/money";
 
 interface Product {
   id: string;
@@ -24,12 +25,6 @@ interface Product {
   category: string | null;
   stock_quantity: number | null;
   total_sold?: number;
-}
-
-interface SelectedProduct {
-  id: string;
-  name: string;
-  price: number;
 }
 
 type SortOption = "best-seller" | "name-asc" | "name-desc" | "price-asc" | "price-desc";
@@ -53,7 +48,6 @@ const sortOptions: { value: SortOption; label: string }[] = [
 
 export default function CustomerProducts() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { user, role, loading } = useAuth();
   const isMobile = useIsMobile();
   // produtos da barbearia atual do cliente
@@ -61,7 +55,8 @@ export default function CustomerProducts() {
   const shopId = barbershop?.id;
   
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+  // mesmo carrinho da área do cliente
+  const cart = useProductCart(shopId);
   const [loadingProducts, setLoadingProducts] = useState(true);
   
   // Filter states
@@ -69,21 +64,6 @@ export default function CustomerProducts() {
   const [priceRange, setPriceRange] = useState<PriceRange>("all");
   const [sortBy, setSortBy] = useState<SortOption>("best-seller");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
-
-  // Load selected products from URL params on mount
-  useEffect(() => {
-    const selectedParam = searchParams.get("selected");
-    if (selectedParam) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(selectedParam));
-        if (Array.isArray(parsed)) {
-          setSelectedProducts(parsed);
-        }
-      } catch (e) {
-        console.error("Error parsing selected products:", e);
-      }
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -231,25 +211,7 @@ export default function CustomerProducts() {
 
   const hasActiveFilters = selectedCategories.length > 0 || priceRange !== "all" || sortBy !== "best-seller";
 
-  const toggleProduct = (product: Product) => {
-    const exists = selectedProducts.find((p) => p.id === product.id);
-    if (exists) {
-      setSelectedProducts((prev) => prev.filter((p) => p.id !== product.id));
-    } else {
-      setSelectedProducts((prev) => [...prev, { id: product.id, name: product.name, price: product.price }]);
-    }
-  };
-
-  const isProductSelected = (productId: string) => {
-    return selectedProducts.some((p) => p.id === productId);
-  };
-
-  const handleGoBack = () => {
-    const selectedParam = encodeURIComponent(JSON.stringify(selectedProducts));
-    navigate(`/cliente?selected=${selectedParam}`);
-  };
-
-  const totalPrice = selectedProducts.reduce((sum, p) => sum + p.price, 0);
+  const handleGoBack = () => navigate("/cliente?carrinho=1");
 
   // Filter sidebar content
   const FilterContent = () => (
@@ -379,10 +341,10 @@ export default function CustomerProducts() {
                 </Sheet>
               )}
 
-              {selectedProducts.length > 0 && (
-                <Badge variant="default" className="gap-1">
+              {cart.count > 0 && (
+                <Badge variant="default" className="gap-1" aria-label={`${cart.count} produto(s) no pedido`}>
                   <ShoppingBag className="h-3 w-3" />
-                  {selectedProducts.length}
+                  {cart.count}
                 </Badge>
               )}
             </div>
@@ -457,7 +419,8 @@ export default function CustomerProducts() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {filteredProducts.map((product) => {
-                    const selected = isProductSelected(product.id);
+                    const quantity = cart.quantityOf(product.id);
+                    const selected = quantity > 0;
                     const isBestSeller = product.id === bestSellerId;
                     const isOutOfStock = product.stock_quantity === 0;
                     return (
@@ -498,8 +461,12 @@ export default function CustomerProducts() {
                             </div>
                           )}
                           {selected && !isOutOfStock && (
-                            <div className="absolute top-2 right-2 bg-primary rounded-full p-1">
-                              <Check className="h-4 w-4 text-primary-foreground" />
+                            <div
+                              className="absolute top-2 right-2 flex h-7 min-w-7 items-center justify-center gap-0.5 rounded-full bg-primary px-2 text-xs font-bold text-primary-foreground shadow"
+                              aria-label={`${quantity} no pedido`}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              {quantity}
                             </div>
                           )}
                         </div>
@@ -509,22 +476,14 @@ export default function CustomerProducts() {
                             <p className="text-xs text-muted-foreground line-clamp-2">{product.description}</p>
                           )}
                           <div className="flex items-center justify-between">
-                            <p className="text-primary font-bold text-sm">R$ {Number(product.price).toFixed(2)}</p>
+                            <p className="text-primary font-bold text-sm">{formatBRL(product.price)}</p>
                             {product.stock_quantity !== null && product.stock_quantity > 0 && (
                               <span className="text-xs text-muted-foreground">
                                 {product.stock_quantity} em estoque
                               </span>
                             )}
                           </div>
-                          <Button
-                            size="sm"
-                            variant={selected ? "secondary" : "default"}
-                            className="w-full"
-                            onClick={() => toggleProduct(product)}
-                            disabled={isOutOfStock}
-                          >
-                            {isOutOfStock ? "Indisponível" : selected ? "Remover" : "Adicionar"}
-                          </Button>
+                          <ProductCartControl product={product} cart={cart} />
                         </CardContent>
                       </Card>
                     );
@@ -535,20 +494,8 @@ export default function CustomerProducts() {
           </div>
         </main>
 
-        {/* Fixed Bottom Bar */}
-        {selectedProducts.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 glass border-t border-border/50 p-4">
-            <div className="container flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">{selectedProducts.length} produto(s) selecionado(s)</p>
-                <p className="font-bold text-foreground">Total: R$ {totalPrice.toFixed(2)}</p>
-              </div>
-              <Button onClick={handleGoBack} className="gap-2">
-                Continuar agendamento
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Carrinho */}
+        <CartBar cart={cart} actionLabel="Escolher horário" onAction={handleGoBack} />
       </div>
     </>
   );

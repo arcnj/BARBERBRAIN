@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getDbErrorMessage } from "@/lib/errors";
+import { createAppointment } from "@/features/agendamento";
 import { useAuth } from "@/hooks/useAuth";
 import { useGoalProgress } from "@/hooks/useGoalProgress";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
@@ -250,7 +251,7 @@ export function AgendaTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
-        .select("id, name, price, duration_minutes")
+        .select("id, name, price, duration_minutes, barbershop_id")
         .eq("active", true)
         .order("name");
 
@@ -372,8 +373,22 @@ export function AgendaTab() {
       }
 
       const service = services?.find(s => s.id === newAppointment.serviceId);
-      if (!service) throw new Error("Service not found");
+      if (!service) throw new Error("Escolha o serviço.");
 
+      if (barberId) {
+        // Preço e conflito de horário conferidos no banco (create_appointment)
+        return createAppointment({
+          barbershopId: service.barbershop_id,
+          barberId,
+          scheduledAt: newAppointment.scheduledAt.toISOString(),
+          serviceIds: [service.id],
+          products: [],
+          notes: newAppointment.notes || null,
+          customerId,
+        });
+      }
+
+      // Admin sem cadastro de profissional: agendamento sem barbeiro definido (como antes)
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -382,7 +397,7 @@ export function AgendaTab() {
           status: "confirmed" as OrderStatus,
           notes: newAppointment.notes || null,
           total_price: service.price,
-          barber_id: barberId || null,
+          barber_id: null,
         })
         .select()
         .single();
@@ -399,7 +414,7 @@ export function AgendaTab() {
 
       if (itemError) throw itemError;
 
-      return order;
+      return order.id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agenda-orders"] });
@@ -417,6 +432,7 @@ export function AgendaTab() {
     },
     onError: (error) => {
       console.error(error);
+      toast.error(getDbErrorMessage(error, "Não foi possível criar o agendamento. Tente novamente."));
     },
   });
 

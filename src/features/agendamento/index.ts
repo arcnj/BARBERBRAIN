@@ -6,3 +6,11 @@ export { CustomerBarbershopProvider, useCustomerBarbershop } from "./context/Cus
 export type { MemberBarbershop } from "./api/my-barbershops.api";
 export { BarbershopSwitcher, NoBarbershopNotice } from "./components/BarbershopSwitcher";
 export { BarbershopHeader } from "./components/BarbershopHeader";
+export { useProductCart, cartItemAsProduct, type ProductCart } from "./hooks/useProductCart";
+export { useAvailableSlots, useCreateAppointment } from "./hooks/useBooking";
+export { ProductCartControl } from "./components/cart/ProductCartControl";
+export { CartBar } from "./components/cart/CartBar";
+export { CartSummary } from "./components/cart/CartSummary";
+export { cartToRpc, isOutOfStock, type CartProduct } from "./domain/cart";
+export { previewBookingPrice } from "./domain/booking-price";
+export { createAppointment, fetchOrderTotal } from "./api/booking.api";

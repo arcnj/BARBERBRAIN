@@ -4,6 +4,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscriptionQuota } from "@/hooks/useSubscriptionQuota";
 import { useSubscriptionCoverage, evaluateCoverage } from "@/hooks/useSubscriptionCoverage";
 import { CoverageSummary } from "@/components/subscriptions/CoverageSummary";
+import {
+  CartSummary,
+  cartToRpc,
+  fetchOrderTotal,
+  previewBookingPrice,
+  useAvailableSlots,
+  useCreateAppointment,
+  type ProductCart,
+} from "@/features/agendamento";
+import { getDbErrorMessage } from "@/lib/errors";
+import { formatBRL } from "@/shared/lib/money";
+import { saoPauloToISO } from "@/shared/lib/dates";
 
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -29,7 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format, addDays, addMinutes, setHours, setMinutes, isBefore, isAfter, startOfDay, isSameDay } from "date-fns";
+import { format, addDays, isAfter, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, Clock, Loader2, Scissors, User, Check, Gift, Cake, Percent, BadgeDollarSign, MessageCircle } from "lucide-react";
 
@@ -59,17 +71,6 @@ interface Barber {
   avatar_url: string | null;
 }
 
-interface TimeSlot {
-  time: string;
-  available: boolean;
-}
-
-interface SelectedProduct {
-  id: string;
-  name: string;
-  price: number;
-}
-
 interface BirthdayCoupon {
   id: string;
   discount_percentage: number | null;
@@ -82,19 +83,15 @@ interface BirthdayCoupon {
 interface AppointmentSchedulerProps {
   /** barbearia atual do cliente: serviços, barbeiros, combos e horários são dela */
   barbershopId: string | undefined;
-  selectedProducts?: SelectedProduct[];
+  /** produtos que o cliente leva no atendimento (carrinho) */
+  cart: ProductCart;
   birthdayCoupon?: BirthdayCoupon | null;
   onAppointmentCreated: () => void;
 }
 
-// Business hours configuration
-const OPENING_HOUR = 9;
-const CLOSING_HOUR = 19;
-const SLOT_DURATION_MINUTES = 30;
-
 export function AppointmentScheduler({
   barbershopId,
-  selectedProducts = [],
+  cart,
   birthdayCoupon,
   onAppointmentCreated,
 }: AppointmentSchedulerProps) {
@@ -111,11 +108,8 @@ export function AppointmentScheduler({
   const [preferredBarber, setPreferredBarber] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("");
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [barbershopWhatsapp, setBarbershopWhatsapp] = useState<string>("");
   const [appointmentDetails, setAppointmentDetails] = useState<{
@@ -149,12 +143,6 @@ export function AppointmentScheduler({
       console.error("Error fetching barbershop settings:", err);
     }
   };
-
-  useEffect(() => {
-    if (selectedDate && preferredBarber) {
-      fetchAvailableSlots(selectedDate);
-    }
-  }, [selectedDate, preferredBarber, selectedServices]);
 
   // Reset date and time when barber changes
   const handleBarberChange = (barberId: string) => {
@@ -219,90 +207,24 @@ export function AppointmentScheduler({
     }
   };
 
-  const fetchAvailableSlots = async (date: Date) => {
-    setLoadingSlots(true);
+  // Horários livres calculados pelo banco (enxerga a agenda de todos, sem expor quem marcou)
+  const selectedDateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined;
+  const slotsQuery = useAvailableSlots({
+    barbershopId,
+    barberId: preferredBarber || undefined,
+    date: selectedDateKey,
+    serviceIds: selectedServices,
+  });
+  const timeSlots = (slotsQuery.data ?? []).map((slot) => ({ time: slot.slot_time, available: slot.available }));
+  const loadingSlots = slotsQuery.isLoading && slotsQuery.fetchStatus !== "idle";
+
+  // Ao mudar data, barbeiro ou serviços, o horário escolhido pode não valer mais
+  useEffect(() => {
     setSelectedTime("");
+  }, [selectedDateKey, preferredBarber, selectedServices]);
 
-    try {
-      // Get all orders for the selected date with service durations
-      const startOfSelectedDay = startOfDay(date);
-      const endOfSelectedDay = new Date(startOfSelectedDay);
-      endOfSelectedDay.setDate(endOfSelectedDay.getDate() + 1);
-
-      let query = supabase
-        .from("orders")
-        .select(`
-          scheduled_at,
-          barber_id,
-          order_items (
-            services (
-              duration_minutes
-            )
-          )
-        `)
-        .eq("barbershop_id", barbershopId!)
-        .gte("scheduled_at", startOfSelectedDay.toISOString())
-        .lt("scheduled_at", endOfSelectedDay.toISOString())
-        .in("status", ["pending", "confirmed", "in_progress"]);
-
-      // If a barber is selected, only check their appointments
-      if (preferredBarber) {
-        query = query.or(`barber_id.eq.${preferredBarber},preferred_barber_id.eq.${preferredBarber}`);
-      }
-
-      const { data: bookedOrders, error } = await query;
-
-      if (error) throw error;
-
-      // Calculate total duration for the services being booked
-      const currentServiceDuration = selectedServices.reduce((total, serviceId) => {
-        const service = services.find(s => s.id === serviceId);
-        return total + (service?.duration_minutes || 30);
-      }, 0) || 30;
-
-      // Generate all possible time slots
-      const slots: TimeSlot[] = [];
-      const now = new Date();
-
-      for (let hour = OPENING_HOUR; hour < CLOSING_HOUR; hour++) {
-        for (let min = 0; min < 60; min += SLOT_DURATION_MINUTES) {
-          const slotTime = setMinutes(setHours(date, hour), min);
-          const slotEnd = addMinutes(slotTime, currentServiceDuration);
-          const timeString = format(slotTime, "HH:mm");
-
-          // Check if slot is in the past
-          const isPast = isSameDay(date, now) && isBefore(slotTime, now);
-          
-          // Check if slot conflicts with any existing booking (considering duration overlap)
-          const hasConflict = (bookedOrders || []).some(order => {
-            if (!order.scheduled_at) return false;
-            const orderStart = new Date(order.scheduled_at);
-            const orderDuration = order.order_items?.[0]?.services?.duration_minutes || 30;
-            const orderEnd = addMinutes(orderStart, orderDuration);
-
-            // Check for any overlap between [slotTime, slotEnd) and [orderStart, orderEnd)
-            return slotTime < orderEnd && slotEnd > orderStart;
-          });
-
-          slots.push({
-            time: timeString,
-            available: !isPast && !hasConflict,
-          });
-        }
-      }
-
-      setTimeSlots(slots);
-    } catch (err) {
-      console.error("Error fetching slots:", err);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os horários",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingSlots(false);
-    }
-  };
+  const createAppointment = useCreateAppointment();
+  const submitting = createAppointment.isPending;
 
   const handleServiceToggle = (serviceId: string) => {
     // If selecting individual services, clear combo
@@ -347,37 +269,20 @@ export function AppointmentScheduler({
     !selectedTime && "escolha o horário",
   ].filter((step): step is string => Boolean(step));
 
-  const calculateSubtotal = () => {
-
-    // If combo is selected, use promotional price
-    if (selectedCombo) {
-      const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
-      return selectedCombo.promotional_price + productsTotal;
-    }
-    
-    const servicesTotal = selectedServices.reduce((total, serviceId) => {
-      const service = services.find((s) => s.id === serviceId);
-      return total + (service?.price || 0);
-    }, 0);
-    const productsTotal = selectedProducts.reduce((total, p) => total + p.price, 0);
-    return servicesTotal + productsTotal;
-  };
-
-  const calculateDiscount = () => {
-    if (!birthdayCoupon) return 0;
-    const subtotal = calculateSubtotal();
-    if (birthdayCoupon.discount_percentage) {
-      return subtotal * (birthdayCoupon.discount_percentage / 100);
-    }
-    if (birthdayCoupon.discount_value) {
-      return Math.min(birthdayCoupon.discount_value, subtotal);
-    }
-    return 0;
-  };
-
-  const calculateTotal = () => {
-    return calculateSubtotal() - calculateDiscount();
-  };
+  // Prévia do valor (a mesma conta do banco; quem decide o preço é a create_appointment)
+  const servicesTotal = selectedServices.reduce(
+    (total, serviceId) => total + Number(services.find((s) => s.id === serviceId)?.price ?? 0),
+    0,
+  );
+  const price = previewBookingPrice({
+    servicesTotal,
+    comboPrice: selectedCombo ? Number(selectedCombo.promotional_price) : null,
+    productsTotal: cart.total,
+    coupon: birthdayCoupon ?? null,
+  });
+  const calculateSubtotal = () => price.subtotal;
+  const calculateDiscount = () => price.discount;
+  const calculateTotal = () => price.total;
 
   const handleSubmit = async () => {
     if (!user || !barbershopId) return;
@@ -421,121 +326,54 @@ export function AppointmentScheduler({
 
 
 
-    setSubmitting(true);
-
     try {
-      const totalPrice = calculateTotal();
-      
-      // Create scheduled datetime
-      const [hours, minutes] = selectedTime.split(":").map(Number);
-      const scheduledAt = setMinutes(setHours(selectedDate, hours), minutes);
-
-      // Create the order - set both barber_id and preferred_barber_id for immediate sync
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          barbershop_id: barbershopId,
-          customer_id: user.id,
-          barber_id: preferredBarber || null,
-          preferred_barber_id: preferredBarber || null,
-          total_price: totalPrice,
-          notes: notes || null,
-          status: "pending",
-          scheduled_at: scheduledAt.toISOString(),
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = selectedServices.map((serviceId) => {
-        const service = services.find((s) => s.id === serviceId);
-        return {
-          order_id: order.id,
-          service_id: serviceId,
-          price: service?.price || 0,
-        };
+      const orderId = await createAppointment.mutateAsync({
+        barbershopId,
+        barberId: preferredBarber,
+        scheduledAt: saoPauloToISO(format(selectedDate, "yyyy-MM-dd"), selectedTime),
+        serviceIds: selectedServices,
+        products: cartToRpc(cart.items),
+        comboId: selectedCombo?.id ?? null,
+        useBirthdayCoupon: !!birthdayCoupon && calculateDiscount() > 0,
+        notes: notes || null,
       });
+      const totalPrice = await fetchOrderTotal(orderId).catch(() => calculateTotal());
 
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems);
+      const selectedBarberName = barbers.find((b) => b.id === preferredBarber)?.name || "Barbeiro";
+      const serviceNames = selectedServices
+        .map((sid) => services.find((s) => s.id === sid)?.name || "")
+        .filter(Boolean);
+      const productNames = cart.items.map((i) => `${i.quantity}× ${i.name}`);
 
-      if (itemsError) throw itemsError;
-
-      // Create order products if any
-      if (selectedProducts.length > 0) {
-        const orderProductItems = selectedProducts.map((product) => ({
-          order_id: order.id,
-          product_id: product.id,
-          price: product.price,
-          quantity: 1,
-        }));
-
-        const { error: productsError } = await supabase
-          .from("order_products")
-          .insert(orderProductItems);
-
-        if (productsError) throw productsError;
-      }
-
-      // If a combo was used, increment its redemption count
-      if (selectedCombo) {
-        await supabase
-          .from("service_combos")
-          .update({ current_redemptions: selectedCombo.current_redemptions + 1 })
-          .eq("id", selectedCombo.id);
-      }
-
-      // If birthday coupon was used, mark it as used
-      if (birthdayCoupon && calculateDiscount() > 0) {
-        await supabase
-          .from("birthday_coupons")
-          .update({ 
-            used: true, 
-            used_at: new Date().toISOString(),
-            order_id: order.id 
-          })
-          .eq("id", birthdayCoupon.id);
-      }
-
-      // Get barber name for the message
-      const selectedBarberName = barbers.find(b => b.id === preferredBarber)?.name || "Barbeiro";
-      const serviceNames = selectedServices.map(sid => {
-        const service = services.find(s => s.id === sid);
-        return service?.name || "";
-      }).filter(Boolean);
-
-      // Save appointment details for WhatsApp message
+      // Detalhes para a mensagem de WhatsApp
       setAppointmentDetails({
-        date: format(scheduledAt, "dd/MM/yyyy", { locale: ptBR }),
-        time: format(scheduledAt, "HH:mm"),
-        services: serviceNames,
+        date: format(selectedDate, "dd/MM/yyyy", { locale: ptBR }),
+        time: selectedTime,
+        services: [...serviceNames, ...productNames],
         barber: selectedBarberName,
         total: totalPrice,
       });
-
-      // Show success dialog with WhatsApp option
       setShowSuccessDialog(true);
 
-      // Reset form
+      // Limpa o formulário e o carrinho (os produtos já estão no pedido)
       setSelectedServices([]);
       setSelectedCombo(null);
       setPreferredBarber("");
       setSelectedDate(undefined);
       setSelectedTime("");
       setNotes("");
+      cart.clear();
       onAppointmentCreated();
     } catch (err) {
       console.error("Error creating order:", err);
       toast({
-        title: "Erro",
-        description: "Não foi possível criar o agendamento",
+        title: "Não foi possível agendar",
+        description: getDbErrorMessage(err, "Tente de novo em instantes."),
         variant: "destructive",
       });
-    } finally {
-      setSubmitting(false);
+      if (err && typeof err === "object" && "code" in err && err.code === "23P01") {
+        setSelectedTime("");
+      }
     }
   };
 
@@ -815,9 +653,22 @@ export function AppointmentScheduler({
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
               </div>
+            ) : slotsQuery.isError ? (
+              <div className="py-8 text-center space-y-2">
+                <p className="text-muted-foreground">
+                  {getDbErrorMessage(slotsQuery.error, "Não foi possível carregar os horários.")}
+                </p>
+                <Button variant="outline" size="sm" onClick={() => slotsQuery.refetch()}>
+                  Tentar de novo
+                </Button>
+              </div>
+            ) : timeSlots.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">
+                A barbearia não atende neste dia. Escolha outra data.
+              </p>
             ) : availableSlots.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                Nenhum horário disponível nesta data para este barbeiro
+                Todos os horários deste dia já foram reservados com este profissional. Escolha outra data ou outro profissional.
               </p>
             ) : (
               <div className="grid grid-cols-4 gap-2">
@@ -863,7 +714,7 @@ export function AppointmentScheduler({
       </Card>
 
       {/* Summary & Submit: sempre visível; o botão só libera quando tudo foi escolhido */}
-      <Card className="glass border-primary/30 bg-primary/5">
+      <Card id="resumo-agendamento" className="glass border-primary/30 bg-primary/5 scroll-mt-4">
           <CardContent className="py-4">
             {/* Birthday Coupon Applied */}
             {birthdayCoupon && calculateDiscount() > 0 && (
@@ -882,26 +733,17 @@ export function AppointmentScheduler({
               </div>
             )}
 
-            {/* Products included */}
-            {selectedProducts.length > 0 && (
-              <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-                <p className="text-sm font-medium text-foreground mb-2">Produtos incluídos:</p>
-                <div className="flex flex-wrap gap-1">
-                  {selectedProducts.map((p) => (
-                    <span key={p.id} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                      {p.name} - R$ {p.price.toFixed(2)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Produtos do carrinho, com quantidade editável */}
+            <div className="mb-4">
+              <CartSummary cart={cart} />
+            </div>
 
             {selectedServices.length > 0 && (
             <div className="space-y-2 mb-4">
               {/* Subtotal */}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span className="text-foreground">R$ {calculateSubtotal().toFixed(2)}</span>
+                <span className="text-foreground">{formatBRL(calculateSubtotal())}</span>
               </div>
               
               {/* Discount */}
@@ -911,7 +753,7 @@ export function AppointmentScheduler({
                     <Gift className="h-3 w-3" />
                     Desconto Aniversário
                   </span>
-                  <span>- R$ {calculateDiscount().toFixed(2)}</span>
+                  <span>- {formatBRL(calculateDiscount())}</span>
                 </div>
               )}
               
@@ -919,7 +761,7 @@ export function AppointmentScheduler({
               <div className="flex items-center justify-between pt-2 border-t border-border">
                 <span className="font-medium text-foreground">Total</span>
                 <span className="text-2xl font-bold text-primary">
-                  R$ {calculateTotal().toFixed(2)}
+                  {formatBRL(calculateTotal())}
                 </span>
               </div>
             </div>
