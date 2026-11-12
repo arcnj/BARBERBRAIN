@@ -50,7 +50,8 @@ As migrations foram aplicadas do zero num Postgres 16 local (com simulação mí
 | A-02 | ✅ Corrigido: só admin envia imagens e só altera ou apaga o que ele mesmo enviou | 1.0d parte 2 |
 | A-03 | ⏳ Parcial: cliente só vê barbeiros da própria barbearia, mas ainda vê e-mail e telefone deles e o `cost_price` dos produtos | próxima etapa de catálogo |
 | A-04 | ✅ Corrigido: cupom de aniversário de uso único e limite do combo aplicados na `create_appointment` | Etapa 1.5 |
-| A-05 | ⏳ Parcial: barbeiro apagado perde a agenda, mas continua membro (vê clientes e catálogo) | 1.0e (edge functions) |
+| A-05 | ✅ Corrigido: “Excluir” virou “Desativar”; desativar ou apagar o cadastro tira o papel de barbeiro na hora (gatilho `sync_barber_access`) | Etapa 1.6 |
+| A-06 | ✅ Corrigido: edge functions conferem “admin da barbearia do barbeiro”, não trocam senha de admin, desfazem o usuário se algo falhar; senha gerada com `crypto.getRandomValues` | Etapa 1.0e/1.6 |
 | A-07 | ✅ Corrigido: uso da assinatura registrado pelo banco | 1.0d parte 1 |
 
 Novos achados (registrados durante a 1.0d):
@@ -59,6 +60,8 @@ Novos achados (registrados durante a 1.0d):
 - **N-03 (baixo, corrigido)**: `get_user_role` revelava o papel de qualquer usuário a visitantes anônimos.
 - **N-05 (atrito de uso, corrigido)**: não existia "Esqueci minha senha" e o cadastro aceitava e-mail com domínio digitado errado (ex.: `gmail.ocm`), deixando o cliente sem conseguir entrar nem recuperar a conta. Agora há recuperação de senha (`/redefinir-senha`) e aviso "Você quis dizer…?".
 - **N-06 (alto, regressão da 1.0d, corrigida)**: Clientes, Hoje, Aniversariantes, Assinantes e Analista buscavam os clientes em `user_roles`; com a regra nova cada usuário vê só o próprio papel e as listas ficaram vazias (o erro era ignorado em silêncio). Agora buscam em `barbershop_members` da barbearia da equipe.
+- **N-07 (crítico, corrigido na 1.6)**: `reset-barber-password` aceitava qualquer `userId` de quem tivesse papel global de admin: o dono de uma barbearia trocava a senha do dono de outra e entrava na conta dele. Agora recebe o `barberId`, exige ser admin da barbearia daquele barbeiro e recusa trocar senha de admin.
+- **N-08 (alto, corrigido na 1.6)**: `create-barber-user` não colocava o novo barbeiro como membro da barbearia quando havia mais de uma barbearia (login sem acesso a nada) e permitia ligar o login a barbeiro de outra barbearia.
 - **N-04 (baixo, aberto)**: o admin pode incluir qualquer usuário (pelo id) como membro da própria barbearia e assim ver o perfil dele. Exige conhecer o id; tratar junto com o convite de barbeiros (1.0e).
 
 ## 1. Mapa do aplicativo

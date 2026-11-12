@@ -87,7 +87,7 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 - **1.0c · Contexto da barbearia no front** ✅ área do cliente (PR #6, branch `etapa-1-0c-area-cliente-por-barbearia`); o painel da equipe ganha o filtro junto com a 1.0d. Pendência registrada: o índice `subscription_requests_one_pending_per_customer` é global (um pedido pendente por cliente em todas as barbearias) e deve passar a ser por barbearia na 1.0d.
   Escopo original: `BarbershopProvider` (barbearia atual, seletor quando o usuário pertence a mais de uma) e `barbershop_id` explícito em todos os inserts e filtros de leitura.
 - **1.0d · Políticas** ✅ (PRs #8, #10 e #12): reescrever o RLS de todas as tabelas com `is_member(barbershop_id)` + papel, já com as regras de barbeiro aprovadas (absorve a Etapa 1.3; barbeiro vê só a própria agenda). Storage com caminho `<barbershop_id>/...`. Remove o espelhamento transitório de `user_roles`.
-- **1.0e · Edge functions**: `create-barber-user`, `reset-barber-password` e lembretes validando "admin desta barbearia" (absorve parte da Etapa 1.6).
+- **1.0e · Edge functions** ✅ barbeiros (branch `etapa-1-6-barbeiros`; lembretes ficam para a 1.7): `create-barber-user`, `reset-barber-password` e lembretes validando "admin desta barbearia" (absorve parte da Etapa 1.6).
 - **1.0f · Cadastro da barbearia (self-service)**: o dono se cadastra sozinho pela página de vendas (`/assinar`) informando nome, e-mail, senha, nome da barbearia e endereço do link (`slug`). A RPC `create_barbershop` cria, numa transação, a barbearia (status `trial`), o vínculo dele como **admin** e as configurações padrão. Ele entra direto no painel. A cobrança vem na Etapa 1.9.
 
 **Riscos**: é a maior mudança do plano. Uma tabela esquecida sem `barbershop_id` vaza dados. Mitigação: **teste pgTAP automático que percorre todas as tabelas de `public`** e falha se alguma não tiver `barbershop_id` + RLS, mais testes com dois tenants (usuário da barbearia A não lê, não grava e não apaga nada da B).
@@ -151,7 +151,7 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 **Riscos**: é o fluxo principal do cliente. Mitigação: feature flag simples (variável de ambiente) para voltar ao caminho antigo durante 1 semana; teste manual completo; testes de concorrência na RPC (dois agendamentos simultâneos no mesmo horário → 1 falha).
 **Validar**: cliente B não vê como livre o horário reservado pelo cliente A; domingo fechado não mostra horários; sábado termina às 14h; preço gravado = preço do catálogo; cupom não pode ser usado 2×; combo respeita `max_redemptions`.
 
-### Etapa 1.6 · Edge functions de usuários (A-05, A-06)
+### Etapa 1.6 · Edge functions de usuários (A-05, A-06) ✅ (branch `etapa-1-6-barbeiros`; “Excluir” → “Desativar” aprovado pelo dono em 2026-11-12)
 **O que muda**
 - `create-barber-user`: validação com zod, `has_role`, desfaz o usuário criado se o papel ou o vínculo falharem, recusa barbeiro já vinculado, `verify_jwt = true`.
 - `reset-barber-password`: confere se o alvo tem papel `barber`.
