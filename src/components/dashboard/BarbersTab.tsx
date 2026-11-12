@@ -32,7 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, User, Camera, Upload, Pencil, KeyRound, Check, Copy, RefreshCw } from "lucide-react";
+import { Plus, UserX, UserCheck, Loader2, User, Camera, Upload, Pencil, KeyRound, Check, Copy, RefreshCw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { WhatsAppButton } from "@/components/ui/whatsapp-button";
 import { Badge } from "@/components/ui/badge";
@@ -62,8 +62,7 @@ export function BarbersTab() {
   const [barberToEdit, setBarberToEdit] = useState<Barber | null>(null);
   const [barberForLogin, setBarberForLogin] = useState<Barber | null>(null);
   const [barberForPasswordReset, setBarberForPasswordReset] = useState<Barber | null>(null);
-  const [adminPassword, setAdminPassword] = useState("");
-  const [verifyingPassword, setVerifyingPassword] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [creatingLogin, setCreatingLogin] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
@@ -296,45 +295,36 @@ export function BarbersTab() {
 
   const openDeleteDialog = (barber: Barber) => {
     setBarberToDelete(barber);
-    setAdminPassword("");
     setDeleteDialogOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!barberToDelete || !user?.email) return;
-
-    setVerifyingPassword(true);
+  // "Excluir" virou "Desativar": o histórico fica e o acesso é retirado na hora pelo banco.
+  const handleToggleActive = async () => {
+    if (!barberToDelete) return;
+    const activate = !barberToDelete.active;
+    setTogglingActive(true);
     try {
-      // Verify admin password by attempting to sign in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: adminPassword,
-      });
-
-      if (signInError) {
-        toast.error("Senha incorreta");
-        setVerifyingPassword(false);
-        return;
-      }
-
-      // Password verified, proceed with deletion
-      const { error: deleteError } = await supabase
+      const { data, error } = await supabase
         .from("barbers")
-        .delete()
-        .eq("id", barberToDelete.id);
+        .update({ active: activate })
+        .eq("id", barberToDelete.id)
+        .select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("Você não tem permissão para alterar este barbeiro.");
 
-      if (deleteError) throw deleteError;
-
-      toast.success("Barbeiro excluído com sucesso!");
+      toast.success(
+        activate
+          ? `${barberToDelete.name} foi reativado e voltou a ter acesso.`
+          : `${barberToDelete.name} foi desativado e perdeu o acesso ao painel.`,
+      );
       setDeleteDialogOpen(false);
       setBarberToDelete(null);
-      setAdminPassword("");
       fetchBarbers();
     } catch (error) {
-      console.error("Error deleting barber:", error);
-      toast.error("Erro ao excluir barbeiro");
+      console.error("Error toggling barber:", error);
+      toast.error(getErrorMessage(error, "Não foi possível alterar o barbeiro. Tente novamente."));
     } finally {
-      setVerifyingPassword(false);
+      setTogglingActive(false);
     }
   };
 
@@ -356,11 +346,9 @@ export function BarbersTab() {
 
   const generatePassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-    let password = "";
-    for (let i = 0; i < 10; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
+    // aleatoriedade criptográfica (Math.random é previsível); 56 símbolos, sem viés relevante
+    const bytes = crypto.getRandomValues(new Uint32Array(12));
+    return Array.from(bytes, (n) => chars[n % chars.length]).join("");
   };
 
   const handleCreateLogin = async () => {
@@ -453,7 +441,7 @@ export function BarbersTab() {
             "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
           body: JSON.stringify({
-            userId: barberForPasswordReset.user_id,
+            barberId: barberForPasswordReset.id,
             newPassword: newPasswordForReset,
           }),
         }
@@ -725,14 +713,22 @@ export function BarbersTab() {
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openDeleteDialog(barber)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {role === "admin" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openDeleteDialog(barber)}
+                          title={barber.active ? "Desativar barbeiro" : "Reativar barbeiro"}
+                          aria-label={barber.active ? `Desativar ${barber.name}` : `Reativar ${barber.name}`}
+                          className={
+                            barber.active
+                              ? "text-destructive hover:text-destructive hover:bg-destructive/10"
+                              : "text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          }
+                        >
+                          {barber.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -745,37 +741,39 @@ export function BarbersTab() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-4">
-              <p>
-                Você está prestes a excluir o barbeiro{" "}
-                <strong>{barberToDelete?.name}</strong>.
-              </p>
-              <p>
-                Para confirmar, digite sua senha de administrador:
-              </p>
-              <Input
-                type="password"
-                placeholder="Sua senha"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                className="mt-2"
-              />
+            <AlertDialogTitle>
+              {barberToDelete?.active ? `Desativar ${barberToDelete?.name}?` : `Reativar ${barberToDelete?.name}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              {barberToDelete?.active ? (
+                <>
+                  <span className="block">
+                    Ele <strong>perde o acesso ao painel na hora</strong> e deixa de aparecer para os clientes na hora
+                    de agendar.
+                  </span>
+                  <span className="block">
+                    Os atendimentos, comissões e metas dele continuam guardados. Você pode reativar quando quiser.
+                  </span>
+                </>
+              ) : (
+                <span className="block">
+                  Ele volta a aparecer para os clientes e, se tiver login, volta a acessar a agenda dele.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setAdminPassword("")}>
-              Cancelar
-            </AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
-              disabled={!adminPassword || verifyingPassword}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                handleToggleActive();
+              }}
+              disabled={togglingActive}
+              className={barberToDelete?.active ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
             >
-              {verifyingPassword && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Excluir
+              {togglingActive && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {barberToDelete?.active ? "Desativar" : "Reativar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
