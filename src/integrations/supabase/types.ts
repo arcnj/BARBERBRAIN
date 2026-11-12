@@ -2279,7 +2279,10 @@ export type Database = {
           p_date: string;
           p_service_ids: string[];
         };
-        Returns: { available: boolean; slot_time: string }[];
+        Returns: {
+          available: boolean;
+          slot_time: string;
+        }[];
       };
       get_barbershop_public: { Args: { p_slug: string }; Returns: Json };
       get_user_role: {
