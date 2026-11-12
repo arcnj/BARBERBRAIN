@@ -75,9 +75,12 @@ select throws_like(
   $$insert into public.orders (barbershop_id, customer_id, status, scheduled_at, total_price)
     values ('00000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000004', 'completed', now(), 0)$$,
   '%row-level security%', 'cliente não cria pedido já concluído');
+-- (desde a 1.5 o cliente agenda pela create_appointment; o pedido de teste é criado pelo banco)
+reset role;
 insert into public.orders (id, barbershop_id, customer_id, status, scheduled_at, total_price) values
   ('f0000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001',
    'a0000000-0000-0000-0000-000000000004', 'pending', now() + interval '3 days', 50);
+set local role authenticated;
 select throws_like(
   $$insert into public.order_items (order_id, service_id, price)
     values ('f0000000-0000-0000-0000-000000000011', 'c0000000-0000-0000-0000-000000000099', 1)$$,
