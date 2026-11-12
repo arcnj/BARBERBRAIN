@@ -86,7 +86,7 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 - **1.0b · Link da barbearia** ✅ (PR #4, branch `etapa-1-0b-link-barbearia`; primeira entrega visível, pedida pelo dono): página pública `/b/<slug>` com nome, logo, serviços e barbeiros daquela barbearia (RPC pública sem dados pessoais); cadastro e login de cliente pelo link entrando na barbearia certa; cliente já cadastrado em outra barbearia vira cliente das duas; no painel do dono, o link com **Copiar** e **Compartilhar no WhatsApp** e a opção de mudar o endereço (`slug`).
 - **1.0c · Contexto da barbearia no front** ✅ área do cliente (PR #6, branch `etapa-1-0c-area-cliente-por-barbearia`); o painel da equipe ganha o filtro junto com a 1.0d. Pendência registrada: o índice `subscription_requests_one_pending_per_customer` é global (um pedido pendente por cliente em todas as barbearias) e deve passar a ser por barbearia na 1.0d.
   Escopo original: `BarbershopProvider` (barbearia atual, seletor quando o usuário pertence a mais de uma) e `barbershop_id` explícito em todos os inserts e filtros de leitura.
-- **1.0d · Políticas**: reescrever o RLS de todas as tabelas com `is_member(barbershop_id)` + papel, já com as regras de barbeiro aprovadas (absorve a Etapa 1.3; barbeiro vê só a própria agenda). Storage com caminho `<barbershop_id>/...`. Remove o espelhamento transitório de `user_roles`.
+- **1.0d · Políticas** ✅ (PRs #8, #10 e #12): reescrever o RLS de todas as tabelas com `is_member(barbershop_id)` + papel, já com as regras de barbeiro aprovadas (absorve a Etapa 1.3; barbeiro vê só a própria agenda). Storage com caminho `<barbershop_id>/...`. Remove o espelhamento transitório de `user_roles`.
 - **1.0e · Edge functions**: `create-barber-user`, `reset-barber-password` e lembretes validando "admin desta barbearia" (absorve parte da Etapa 1.6).
 - **1.0f · Cadastro da barbearia (self-service)**: o dono se cadastra sozinho pela página de vendas (`/assinar`) informando nome, e-mail, senha, nome da barbearia e endereço do link (`slug`). A RPC `create_barbershop` cria, numa transação, a barbearia (status `trial`), o vínculo dele como **admin** e as configurações padrão. Ele entra direto no painel. A cobrança vem na Etapa 1.9.
 
@@ -128,7 +128,7 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 **Riscos**: algum fluxo da Agenda ou do Hoje usado por barbeiro que escreve em tabela de admin. Mitigação: mapear os writes das 3 abas do barbeiro antes; teste manual logado como barbeiro.
 **Validar**: pgTAP por tabela (barbeiro não faz UPDATE em `services`, não faz DELETE em `barbers`); barbeiro consegue criar e concluir os próprios atendimentos.
 
-### Etapa 1.4 · Conclusão de atendimento no servidor (C-03, A-01, A-07, A-10)
+### Etapa 1.4 · Conclusão de atendimento no servidor (C-03, A-01, A-07, A-10) ✅ (PR #8, junto com a 1.0d)
 **O que muda**
 - Migration: RPC `complete_appointment(p_order_id)` `SECURITY DEFINER`, em uma transação: valida papel e dono; muda o status; registra o uso da assinatura (com `ON CONFLICT` correto); grava as comissões; recalcula as metas do mês e grava a premiação uma única vez.
 - `UNIQUE (reference_id, record_type)` em `barber_financial_records`. **Antes**: consulta de duplicatas já existentes (A-01). **Se houver duplicatas, eu paro e mostro a lista: apagar ou ajustar registros financeiros exige sua aprovação.**
@@ -139,7 +139,8 @@ Vem antes das demais porque todas as políticas da Fase 1 passam a ser escritas 
 **Riscos**: diferença entre o cálculo antigo (cliente) e o novo (servidor). Mitigação: rodar os dois em paralelo em staging e comparar com pedidos reais. Duplicatas existentes bloqueiam a constraint.
 **Validar**: concluir um atendimento como barbeiro e como admin; conferir 1 registro de comissão por pedido; bater a meta e conferir 1 premiação; assinante com uso registrado.
 
-### Etapa 1.5 · Agendamento e disponibilidade no servidor (C-02, C-04, A-04)
+### Etapa 1.5 · Agendamento e disponibilidade no servidor (C-02, C-04, A-04) ✅ (branch `etapa-1-5-agendamento-no-servidor`)
+> Decisões do dono (2026-11-12): carrinho de produtos com quantidade entra nesta etapa; produto só junto com um atendimento (o cliente leva no dia); quantidade limitada ao estoque. A equipe pode encaixar fora do expediente; o cliente só agenda dentro do horário configurado em Configurações.
 **O que muda**
 - RPC `get_available_slots(barber_id, date, duration)`: usa `barbershop_settings` (dia fechado, horários) e os pedidos ativos do barbeiro; devolve **só horários**, sem dados de outros clientes.
 - RPC `create_appointment(...)`: recalcula o preço a partir de `services`, combos, cupom e produtos; revalida o horário com `pg_advisory_xact_lock(barber, dia)`; insere pedido, itens e produtos; incrementa o combo; marca o cupom. Tudo atômico.

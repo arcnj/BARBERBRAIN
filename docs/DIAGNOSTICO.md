@@ -44,12 +44,12 @@ As migrations foram aplicadas do zero num Postgres 16 local (com simulação mí
 | C-01 | ✅ Corrigido: só o admin da barbearia altera catálogo, preços e configurações | 1.0d parte 2 (`20261103130000`) |
 | C-02 | ✅ Corrigido: cliente só cria pedido pendente e só cancela; não muda preço nem conclui | 1.0d parte 2 |
 | C-03 | ✅ Corrigido: comissão e premiação calculadas pelo banco; barbeiro só lê o próprio extrato | 1.0d partes 1 e 2 |
-| C-04 | ⏳ Disponibilidade no servidor (RPC `get_available_slots`) | Etapa 1.5 |
+| C-04 | ✅ Corrigido: horários livres e conflito conferidos no banco (`get_available_slots`, `create_appointment` com trava por barbeiro e dia) | Etapa 1.5 |
 | C-05 | ✅ Corrigido: toda política filtra pela barbearia; teste de isolamento com duas barbearias | 1.0a–1.0d |
 | A-01 | ✅ Corrigido: premiação paga uma única vez | 1.0d parte 1 |
 | A-02 | ✅ Corrigido: só admin envia imagens e só altera ou apaga o que ele mesmo enviou | 1.0d parte 2 |
 | A-03 | ⏳ Parcial: cliente só vê barbeiros da própria barbearia, mas ainda vê e-mail e telefone deles e o `cost_price` dos produtos | próxima etapa de catálogo |
-| A-04 | ⏳ Cupom e combo pela RPC `create_appointment` | Etapa 1.5 |
+| A-04 | ✅ Corrigido: cupom de aniversário de uso único e limite do combo aplicados na `create_appointment` | Etapa 1.5 |
 | A-05 | ⏳ Parcial: barbeiro apagado perde a agenda, mas continua membro (vê clientes e catálogo) | 1.0e (edge functions) |
 | A-07 | ✅ Corrigido: uso da assinatura registrado pelo banco | 1.0d parte 1 |
 

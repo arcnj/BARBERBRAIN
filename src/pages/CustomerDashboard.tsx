@@ -15,6 +15,7 @@ import { SatisfactionPopup } from "@/components/customer/SatisfactionPopup";
 import { MySubscriptionCard } from "@/components/customer/MySubscriptionCard";
 import { MySubscriptionTab } from "@/components/customer/MySubscriptionTab";
 import { toast } from "sonner";
+import { formatBRL } from "@/shared/lib/money";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +29,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-import { BarbershopSwitcher, NoBarbershopNotice, useCustomerBarbershop } from "@/features/agendamento";
+import {
+  BarbershopSwitcher,
+  CartBar,
+  NoBarbershopNotice,
+  ProductCartControl,
+  useCustomerBarbershop,
+  useProductCart,
+} from "@/features/agendamento";
 
 interface Order {
   id: string;
@@ -75,13 +83,8 @@ interface Product {
   price: number;
   image_url: string | null;
   category: string | null;
+  stock_quantity: number | null;
   total_sold?: number;
-}
-
-interface SelectedProduct {
-  id: string;
-  name: string;
-  price: number;
 }
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -196,7 +199,6 @@ export default function CustomerDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [activeTab, setActiveTab] = useState("agendar");
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -207,6 +209,12 @@ export default function CustomerDashboard() {
   // Barbearia em que o cliente está agendando: tudo nesta tela é filtrado por ela
   const { barbershop, barbershops, isLoading: loadingBarbershop, selectBarbershop } = useCustomerBarbershop();
   const shopId = barbershop?.id;
+  // Carrinho de produtos que o cliente leva no atendimento (vale também na vitrine de produtos)
+  const cart = useProductCart(shopId);
+  const goToBookingSummary = () => {
+    setActiveTab("agendar");
+    setTimeout(() => document.getElementById("resumo-agendamento")?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
 
   const fetchBarbershopSettings = async () => {
     if (!shopId) return;
@@ -290,7 +298,7 @@ export default function CustomerDashboard() {
       // Fetch products
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("id, name, description, price, image_url, category")
+        .select("id, name, description, price, image_url, category, stock_quantity")
         .eq("barbershop_id", shopId)
         .eq("active", true)
         .order("name");
@@ -330,21 +338,11 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Load selected products from URL params and clean URL
+  // Voltando da vitrine de produtos (?carrinho=1): abre o resumo do agendamento
   useEffect(() => {
-    const selectedParam = searchParams.get("selected");
-    if (selectedParam) {
-      try {
-        const parsed = JSON.parse(decodeURIComponent(selectedParam));
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSelectedProducts(parsed);
-          setActiveTab("agendar");
-        }
-      } catch (e) {
-        console.error("Error parsing selected products:", e);
-      }
-      // Clean URL params after loading
+    if (searchParams.get("carrinho")) {
       navigate("/cliente", { replace: true });
+      goToBookingSummary();
     }
   }, [searchParams, navigate]);
 
@@ -464,21 +462,6 @@ export default function CustomerDashboard() {
       console.error("Error editing order:", err);
       toast.error("Erro ao editar agendamento");
     }
-  };
-
-  const addProduct = (product: Product) => {
-    const exists = selectedProducts.find(p => p.id === product.id);
-    if (exists) {
-      setSelectedProducts(prev => prev.filter(p => p.id !== product.id));
-      toast.info(`${product.name} removido`);
-    } else {
-      setSelectedProducts(prev => [...prev, { id: product.id, name: product.name, price: product.price }]);
-      toast.success(`${product.name} adicionado ao pedido`);
-    }
-  };
-
-  const isProductSelected = (productId: string) => {
-    return selectedProducts.some(p => p.id === productId);
   };
 
   if (loading) {
@@ -646,19 +629,16 @@ export default function CustomerDashboard() {
                   Produtos
                 </h2>
                 <div className="flex items-center gap-2">
-                  {selectedProducts.length > 0 && (
+                  {cart.count > 0 && (
                     <Badge variant="default" className="gap-1">
-                      {selectedProducts.length} selecionado(s)
+                      {cart.count} no pedido
                     </Badge>
                   )}
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     className="text-primary gap-1"
-                    onClick={() => {
-                      const selectedParam = encodeURIComponent(JSON.stringify(selectedProducts));
-                      navigate(`/cliente/produtos?selected=${selectedParam}`);
-                    }}
+                    onClick={() => navigate("/cliente/produtos")}
                   >
                     Ver mais produtos
                     <ArrowRight className="h-4 w-4" />
@@ -667,7 +647,8 @@ export default function CustomerDashboard() {
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {products.slice(0, 6).map((product, index) => {
-                  const selected = isProductSelected(product.id);
+                  const quantity = cart.quantityOf(product.id);
+                  const selected = quantity > 0;
                   const isBestSeller = index === 0 && (product.total_sold || 0) > 0;
                   return (
                     <Card 
@@ -695,22 +676,19 @@ export default function CustomerDashboard() {
                           </div>
                         )}
                         {selected && (
-                          <div className="absolute top-1 right-1 bg-primary rounded-full p-0.5">
-                            <Check className="h-3 w-3 text-primary-foreground" />
+                          <div
+                            className="absolute top-1 right-1 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground shadow"
+                            aria-label={`${quantity} no pedido`}
+                          >
+                            <Check className="h-3 w-3" />
+                            {quantity}
                           </div>
                         )}
                       </div>
                       <CardContent className="p-2 space-y-1">
                         <h3 className="font-medium text-foreground text-xs truncate">{product.name}</h3>
-                        <p className="text-primary font-bold text-xs">R$ {Number(product.price).toFixed(2)}</p>
-                        <Button 
-                          size="sm" 
-                          variant={selected ? "secondary" : "default"}
-                          className="w-full h-7 text-xs"
-                          onClick={() => addProduct(product)}
-                        >
-                          {selected ? "Remover" : "Adicionar"}
-                        </Button>
+                        <p className="text-primary font-bold text-xs">{formatBRL(product.price)}</p>
+                        <ProductCartControl product={product} cart={cart} />
                       </CardContent>
                     </Card>
                   );
@@ -755,11 +733,10 @@ export default function CustomerDashboard() {
               <AppointmentScheduler
                 key={shopId}
                 barbershopId={shopId}
-                selectedProducts={selectedProducts}
+                cart={cart}
                 birthdayCoupon={birthdayCoupon}
                 onAppointmentCreated={() => {
                   fetchOrders();
-                  setSelectedProducts([]);
                   fetchBirthdayCoupon(); // Refresh coupon status
                   setActiveTab("pedidos");
                 }} 
@@ -998,6 +975,10 @@ export default function CustomerDashboard() {
         
         {/* Satisfaction Popup */}
         {user && shopId && <SatisfactionPopup userId={user.id} barbershopId={shopId} />}
+
+        {/* Carrinho: fica visível enquanto o cliente escolhe o horário */}
+        <CartBar cart={cart} actionLabel="Ver resumo" onAction={goToBookingSummary} />
+        {cart.count > 0 && <div className="h-20" aria-hidden />}
       </div>
     </>
   );

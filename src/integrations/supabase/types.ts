@@ -827,8 +827,11 @@ export type Database = {
         Row: {
           barber_id: string | null;
           barbershop_id: string;
+          birthday_coupon_id: string | null;
+          combo_id: string | null;
           created_at: string;
           customer_id: string;
+          discount_amount: number;
           id: string;
           notes: string | null;
           preferred_barber_id: string | null;
@@ -841,8 +844,11 @@ export type Database = {
         Insert: {
           barber_id?: string | null;
           barbershop_id?: string;
+          birthday_coupon_id?: string | null;
+          combo_id?: string | null;
           created_at?: string;
           customer_id: string;
+          discount_amount?: number;
           id?: string;
           notes?: string | null;
           preferred_barber_id?: string | null;
@@ -854,8 +860,11 @@ export type Database = {
         Update: {
           barber_id?: string | null;
           barbershop_id?: string;
+          birthday_coupon_id?: string | null;
+          combo_id?: string | null;
           created_at?: string;
           customer_id?: string;
+          discount_amount?: number;
           id?: string;
           notes?: string | null;
           preferred_barber_id?: string | null;
@@ -884,6 +893,20 @@ export type Database = {
             columns: ["barbershop_id"];
             isOneToOne: false;
             referencedRelation: "barbershops";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_birthday_coupon_id_fkey";
+            columns: ["birthday_coupon_id"];
+            isOneToOne: false;
+            referencedRelation: "birthday_coupons";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "orders_combo_id_fkey";
+            columns: ["combo_id"];
+            isOneToOne: false;
+            referencedRelation: "service_combos";
             referencedColumns: ["id"];
           },
           {
@@ -2231,9 +2254,35 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_appointment: {
+        Args: {
+          p_barber_id: string;
+          p_barbershop_id: string;
+          p_combo_id?: string;
+          p_customer_id?: string;
+          p_notes?: string;
+          p_products?: Json;
+          p_scheduled_at: string;
+          p_service_ids: string[];
+          p_use_birthday_coupon?: boolean;
+        };
+        Returns: string;
+      };
       current_barbershop_id: {
         Args: Record<PropertyKey, never>;
         Returns: string;
+      };
+      get_available_slots: {
+        Args: {
+          p_barber_id: string;
+          p_barbershop_id: string;
+          p_date: string;
+          p_service_ids: string[];
+        };
+        Returns: {
+          available: boolean;
+          slot_time: string;
+        }[];
       };
       get_barbershop_public: { Args: { p_slug: string }; Returns: Json };
       get_user_role: {
